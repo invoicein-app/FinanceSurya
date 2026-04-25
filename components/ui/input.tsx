@@ -1,0 +1,58 @@
+"use client"
+
+import * as React from "react"
+import { Input as InputPrimitive } from "@base-ui/react/input"
+
+import { cn } from "@/lib/utils"
+
+function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
+  return (node: T | null) => {
+    for (const ref of refs) {
+      if (ref == null) continue
+      if (typeof ref === "function") {
+        ref(node)
+      } else {
+        ;(ref as React.MutableRefObject<T | null>).current = node
+      }
+    }
+  }
+}
+
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  function Input({ className, type, onWheel, ...props }, forwardedRef) {
+    const innerRef = React.useRef<HTMLInputElement>(null)
+
+    React.useEffect(() => {
+      if (type !== "number") {
+        return
+      }
+      const el = innerRef.current
+      if (!el) {
+        return
+      }
+      const preventWheelChange = (event: WheelEvent) => {
+        event.preventDefault()
+      }
+      el.addEventListener("wheel", preventWheelChange, { passive: false })
+      return () => el.removeEventListener("wheel", preventWheelChange)
+    }, [type])
+
+    return (
+      <InputPrimitive
+        ref={composeRefs(innerRef, forwardedRef)}
+        type={type}
+        data-slot="input"
+        className={cn(
+          "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+          className,
+        )}
+        onWheel={onWheel}
+        {...props}
+      />
+    )
+  },
+)
+
+Input.displayName = "Input"
+
+export { Input }

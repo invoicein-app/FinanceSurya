@@ -1,0 +1,785 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+
+import {
+  fetchCustomerItemSuggestionsAction,
+  fetchCustomerPriceListHintsAction,
+} from "@/app/sales/price-hints";
+import {
+  CustomerCombobox,
+  type CustomerOption,
+} from "@/components/sales/customer-combobox";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { buildSaleItemKey } from "@/lib/item-key";
+import { parseThicknessMmForStock, thicknessMmMatches } from "@/lib/sales/thickness-mm";
+import type { ThicknessStockOption } from "@/lib/services/wood-purchase-service";
+
+type ItemSourceRow = {
+  id: string;
+  /** Alokasi dari penjualan lama (per baris log/kapling) — tidak bisa dihapus dari form. */
+  isLegacy: boolean;
+  /** WoodPurchase.id — sumber partai (ketebalan & qty dari kolom item). */
+  woodPurchaseId: string;
+  /** Hanya riwayat / payload lama */
+  thicknessStockId: string;
+  purchaseItemId: string;
+  legacyLabel?: string;
+  qtyTaken: string;
+  volumeTaken: string;
+  costAmount: string;
+};
+
+type ItemRow = {
+  id: string;
+  itemName: string;
+  category: string;
+  thickness: string;
+  width: string;
+  length: string;
+  unit: string;
+  qty: string;
+  price: string;
+  note: string;
+  sources: ItemSourceRow[];
+};
+
+type CustomerItemSuggestion = {
+  itemKey: string;
+  itemName: string;
+  category: string | null;
+  thickness: string | null;
+  width: string | null;
+  length: string | null;
+  unit: string | null;
+  latestPrice: string;
+  lastSaleDate: Date;
+  usageCount: number;
+};
+
+type SaleFormValues = {
+  saleDate: string;
+  customerId: string;
+  note: string;
+  items: ItemRow[];
+};
+
+type SaleFormProps = {
+  customers: CustomerOption[];
+  thicknessStockOptions: ThicknessStockOption[];
+  action: (formData: FormData) => void | Promise<void>;
+  submitLabel: string;
+  initialValues?: SaleFormValues;
+};
+
+const defaultRow = (): ItemRow => ({
+  id: crypto.randomUUID(),
+  itemName: "",
+  category: "",
+  thickness: "",
+  width: "",
+  length: "",
+  unit: "",
+  qty: "1",
+  price: "0",
+  note: "",
+  sources: [
+    {
+      id: crypto.randomUUID(),
+      isLegacy: false,
+      woodPurchaseId: "",
+      thicknessStockId: "",
+      purchaseItemId: "",
+      qtyTaken: "0",
+      volumeTaken: "0",
+      costAmount: "0",
+    },
+  ],
+});
+
+export function SaleForm({
+  customers,
+  thicknessStockOptions,
+  action,
+  submitLabel,
+  initialValues,
+}: SaleFormProps) {
+  const [saleDate, setSaleDate] = useState(initialValues?.saleDate ?? "");
+  const [customerId, setCustomerId] = useState(initialValues?.customerId ?? "");
+  const [customerFieldError, setCustomerFieldError] = useState<string | undefined>();
+  const [saleNote, setSaleNote] = useState(initialValues?.note ?? "");
+  const [items, setItems] = useState<ItemRow[]>([
+    ...(initialValues?.items.length ? initialValues.items : [defaultRow()]),
+  ]);
+  const [priceListHints, setPriceListHints] = useState<
+    Record<string, { latestPrice: string }>
+  >({});
+  const [rowSuggestions, setRowSuggestions] = useState<Record<string, CustomerItemSuggestion[]>>({});
+  const [allocationError, setAllocationError] = useState<string | undefined>();
+
+  const partaiOptions = useMemo(() => {
+    const map = new Map<string, { id: string; batchCode: string }>();
+    for (const row of thicknessStockOptions) {
+      if (!map.has(row.purchaseId)) {
+        map.set(row.purchaseId, { id: row.purchaseId, batchCode: row.batchCode });
+      }
+    }
+    return [...map.values()];
+  }, [thicknessStockOptions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!customerId) {
+      return;
+    }
+    void fetchCustomerPriceListHintsAction(customerId).then((data) => {
+      if (!cancelled) {
+        setPriceListHints(data);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
+
+  const hintsForDisplay = useMemo(
+    () => (customerId ? priceListHints : {}),
+    [customerId, priceListHints],
+  );
+
+  const estimatedTotal = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const qty = Number(item.qty);
+      const price = Number(item.price);
+      if (qty <= 0 || price <= 0) {
+        return sum;
+      }
+      return sum + qty * price;
+    }, 0);
+  }, [items]);
+
+  const serializedItemsPayload = useMemo(() => {
+    return JSON.stringify(
+      items.map((item) => ({
+        itemName: item.itemName,
+        category: item.category || undefined,
+        thickness: item.thickness || undefined,
+        width: item.width || undefined,
+        length: item.length || undefined,
+        unit: item.unit || undefined,
+        qty: Number(item.qty || 0),
+        price: Number(item.price || 0),
+        note: item.note || undefined,
+        sources: item.sources.flatMap((source) => {
+          if (source.isLegacy) {
+            const qtyTaken = Number(source.qtyTaken || 0);
+            const volumeTaken = Number(source.volumeTaken || 0);
+            if (!source.purchaseItemId || (qtyTaken <= 0 && volumeTaken <= 0)) {
+              return [];
+            }
+            return [
+              {
+                purchaseItemId: source.purchaseItemId,
+                qtyTaken,
+                volumeTaken,
+                costAmount: Number(source.costAmount || 0),
+              },
+            ];
+          }
+          if (source.woodPurchaseId) {
+            return [{ woodPurchaseId: source.woodPurchaseId }];
+          }
+          return [];
+        }),
+      })),
+    );
+  }, [items]);
+
+  const addItem = () => {
+    const row = defaultRow();
+    setItems((current) => [...current, row]);
+    setRowSuggestions((current) => ({ ...current, [row.id]: [] }));
+  };
+
+  const removeItem = (id: string) => {
+    setItems((current) => current.filter((item) => item.id !== id));
+    setRowSuggestions((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const updateItem = (
+    id: string,
+    key: Exclude<keyof ItemRow, "sources">,
+    value: string,
+  ) => {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
+    );
+  };
+
+  const updateSource = (
+    itemId: string,
+    sourceId: string,
+    key: keyof ItemSourceRow,
+    value: string,
+  ) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId ? { ...source, [key]: value } : source,
+              ),
+            }
+          : item,
+      ),
+    );
+  };
+
+  const requestSuggestions = async (itemId: string, keyword: string) => {
+    if (!customerId) {
+      return;
+    }
+    const suggestions = await fetchCustomerItemSuggestionsAction(customerId, keyword, 8);
+    setRowSuggestions((current) => ({
+      ...current,
+      [itemId]: suggestions,
+    }));
+  };
+
+  const applySuggestion = (itemId: string, suggestion: CustomerItemSuggestion) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              itemName: suggestion.itemName,
+              category: suggestion.category ?? "",
+              thickness: suggestion.thickness ?? "",
+              width: suggestion.width ?? "",
+              length: suggestion.length ?? "",
+              unit: suggestion.unit ?? "",
+              price: suggestion.latestPrice,
+            }
+          : item,
+      ),
+    );
+    setRowSuggestions((current) => ({
+      ...current,
+      [itemId]: [],
+    }));
+  };
+
+  const onCustomerChange = (value: string) => {
+    setCustomerId(value);
+    setCustomerFieldError(undefined);
+    setAllocationError(undefined);
+    setPriceListHints({});
+    setRowSuggestions({});
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!customerId) {
+      event.preventDefault();
+      setCustomerFieldError("Pilih customer terlebih dahulu.");
+      return;
+    }
+
+    const allocationProblems: string[] = [];
+    for (const item of items) {
+      if (item.sources.some((s) => s.isLegacy)) {
+        continue;
+      }
+      const partaiId = item.sources.find((s) => !s.isLegacy)?.woodPurchaseId;
+      if (!partaiId) {
+        continue;
+      }
+      const mm = parseThicknessMmForStock(item.thickness);
+      if (!mm) {
+        allocationProblems.push(
+          `Item "${item.itemName || "tanpa nama"}": isi Tebal (mm) agar stok partai bisa dikurangi.`,
+        );
+        continue;
+      }
+      const stockRow = thicknessStockOptions.find(
+        (o) => o.purchaseId === partaiId && thicknessMmMatches(o.thicknessMm, mm),
+      );
+      if (!stockRow) {
+        allocationProblems.push(
+          `Item "${item.itemName || "tanpa nama"}": partai yang dipilih tidak punya stok untuk ketebalan ${mm} mm.`,
+        );
+        continue;
+      }
+      const need = Number(item.qty || 0);
+      if (need > stockRow.qtyAvailableEffective + 1e-9) {
+        allocationProblems.push(
+          `Item "${item.itemName || "tanpa nama"}": stok tidak cukup (tersisa ${stockRow.qtyAvailableEffective.toLocaleString("id-ID")}, butuh ${need.toLocaleString("id-ID")}).`,
+        );
+      }
+    }
+
+    if (allocationProblems.length > 0) {
+      event.preventDefault();
+      setAllocationError(allocationProblems.join(" "));
+      return;
+    }
+    setAllocationError(undefined);
+  };
+
+  const tryAutoFillExactPrice = (itemId: string) => {
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId || !customerId) {
+          return item;
+        }
+
+        const itemKey = buildSaleItemKey({
+          itemName: item.itemName,
+          category: item.category || undefined,
+          thickness: item.thickness || undefined,
+          width: item.width || undefined,
+          length: item.length || undefined,
+          unit: item.unit || undefined,
+        });
+        const exactPrice = hintsForDisplay[itemKey]?.latestPrice;
+        if (!exactPrice) {
+          return item;
+        }
+
+        const currentPrice = Number(item.price || 0);
+        if (currentPrice > 0) {
+          return item;
+        }
+
+        return { ...item, price: exactPrice };
+      }),
+    );
+  };
+
+  return (
+    <form action={action} className="space-y-6" onSubmit={handleFormSubmit}>
+      <input type="hidden" name="itemsPayload" value={serializedItemsPayload} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="saleDate">Tanggal Penjualan</Label>
+          <Input
+            id="saleDate"
+            name="saleDate"
+            type="date"
+            value={saleDate}
+            onChange={(event) => setSaleDate(event.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <CustomerCombobox
+            id="customerId"
+            label="Customer"
+            customers={customers}
+            value={customerId}
+            onValueChange={onCustomerChange}
+            required
+            errorText={customerFieldError}
+          />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="note">Catatan</Label>
+          <Textarea
+            id="note"
+            name="note"
+            placeholder="Catatan tambahan transaksi..."
+            value={saleNote}
+            onChange={(event) => setSaleNote(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Item Penjualan dan Alokasi Sumber Partai</h3>
+          <Button type="button" variant="outline" onClick={addItem}>
+            Tambah Item
+          </Button>
+        </div>
+
+        {items.map((item, index) => {
+          const hasLegacySources = item.sources.some((s) => s.isLegacy);
+          const legacyQtySum = item.sources
+            .filter((s) => s.isLegacy)
+            .reduce((sum, s) => sum + Number(s.qtyTaken || 0), 0);
+          const sourceVolumeTotal = item.sources.reduce(
+            (sum, source) =>
+              source.isLegacy ? sum + Number(source.volumeTaken || 0) : sum,
+            0,
+          );
+          const hasPartaiNew = item.sources.some((s) => !s.isLegacy && s.woodPurchaseId);
+          const qtyMismatch =
+            hasLegacySources && Math.abs(Number(item.qty || 0) - legacyQtySum) > 1e-6;
+
+          const itemKey = buildSaleItemKey({
+            itemName: item.itemName,
+            category: item.category || undefined,
+            thickness: item.thickness || undefined,
+            width: item.width || undefined,
+            length: item.length || undefined,
+            unit: item.unit || undefined,
+          });
+          const priceHint = hintsForDisplay[itemKey];
+
+          return (
+            <div key={item.id} className="space-y-3 rounded-lg border p-3">
+              <div className="grid gap-3 md:grid-cols-12">
+                <div className="md:col-span-4">
+                  <Label>Nama Item *</Label>
+                  <Input
+                    value={item.itemName}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      updateItem(item.id, "itemName", value);
+                      void requestSuggestions(item.id, value);
+                    }}
+                    onBlur={() => tryAutoFillExactPrice(item.id)}
+                    onFocus={() => {
+                      if ((rowSuggestions[item.id]?.length ?? 0) === 0) {
+                        void requestSuggestions(item.id, item.itemName);
+                      }
+                    }}
+                    placeholder="Kayu campuran partai"
+                    required
+                  />
+                  {!!rowSuggestions[item.id]?.length && customerId ? (
+                    <div className="mt-2 space-y-1 rounded-md border bg-card p-2">
+                      {rowSuggestions[item.id].map((suggestion) => (
+                        <button
+                          key={`${item.id}-${suggestion.itemKey}`}
+                          type="button"
+                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-muted"
+                          onClick={() => applySuggestion(item.id, suggestion)}
+                        >
+                          <span>
+                            {suggestion.itemName}
+                            {suggestion.unit ? ` (${suggestion.unit})` : ""}
+                          </span>
+                          <span className="text-muted-foreground">
+                            Rp {Number(suggestion.latestPrice).toLocaleString("id-ID")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Qty *</Label>
+                  <Input
+                    type="number"
+                    min={0.01}
+                    step="0.01"
+                    value={item.qty}
+                    onChange={(event) => updateItem(item.id, "qty", event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Harga *</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={item.price}
+                    onChange={(event) => updateItem(item.id, "price", event.target.value)}
+                    required
+                  />
+                  {priceHint && item.itemName.trim() ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                        Harga terakhir customer ini
+                      </span>{" "}
+                      Rp{" "}
+                      {Number(priceHint.latestPrice).toLocaleString("id-ID")}
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 align-baseline text-xs"
+                        onClick={() => updateItem(item.id, "price", priceHint.latestPrice)}
+                      >
+                        Terapkan
+                      </Button>
+                    </p>
+                  ) : null}
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Subtotal</Label>
+                  <Input
+                    value={(
+                      Number(item.qty || 0) * Number(item.price || 0)
+                    ).toLocaleString("id-ID")}
+                    disabled
+                  />
+                </div>
+                <div className="md:col-span-2 md:self-end">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => removeItem(item.id)}
+                    disabled={items.length === 1}
+                  >
+                    Hapus Item
+                  </Button>
+                </div>
+                <div className="md:col-span-12">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Spesifikasi (opsional) dipakai untuk mengelompokkan item yang sama — mempengaruhi
+                    referensi harga per customer.
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-10">
+                    <div className="md:col-span-2">
+                      <Label>Kategori</Label>
+                      <Input
+                        value={item.category}
+                        onChange={(event) =>
+                          updateItem(item.id, "category", event.target.value)
+                        }
+                        onBlur={() => tryAutoFillExactPrice(item.id)}
+                        placeholder="Opsional"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Tebal</Label>
+                      <Input
+                        value={item.thickness}
+                        onChange={(event) =>
+                          updateItem(item.id, "thickness", event.target.value)
+                        }
+                        onBlur={() => tryAutoFillExactPrice(item.id)}
+                        placeholder="Opsional"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Lebar</Label>
+                      <Input
+                        value={item.width}
+                        onChange={(event) => updateItem(item.id, "width", event.target.value)}
+                        onBlur={() => tryAutoFillExactPrice(item.id)}
+                        placeholder="Opsional"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Panjang</Label>
+                      <Input
+                        value={item.length}
+                        onChange={(event) =>
+                          updateItem(item.id, "length", event.target.value)
+                        }
+                        onBlur={() => tryAutoFillExactPrice(item.id)}
+                        placeholder="Opsional"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label>Satuan</Label>
+                      <Input
+                        value={item.unit}
+                        onChange={(event) => updateItem(item.id, "unit", event.target.value)}
+                        onBlur={() => tryAutoFillExactPrice(item.id)}
+                        placeholder="m³, btg, …"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="md:col-span-12">
+                  <Label>Catatan Item</Label>
+                  <Input
+                    value={item.note}
+                    onChange={(event) => updateItem(item.id, "note", event.target.value)}
+                    placeholder="Catatan item penjualan"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-md border border-dashed p-3">
+                <h4 className="text-xs font-medium uppercase text-muted-foreground">
+                  Sumber Partai
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Pilih satu partai. Pengurangan stok memakai <strong>Tebal</strong> dan{" "}
+                  <strong>Qty</strong> pada item (tidak perlu diinput ulang di sini).
+                </p>
+
+                {item.sources
+                  .filter((s) => s.isLegacy)
+                  .map((source) => (
+                    <div key={source.id} className="grid gap-3 md:grid-cols-12">
+                      <div className="md:col-span-8 space-y-1">
+                        <Label>Alokasi lama (log/kapling)</Label>
+                        <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                          {source.legacyLabel ?? "Riwayat alokasi lama"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Riwayat transaksi lama. Untuk alokasi model baru, buat item penjualan baru
+                          tanpa baris log ini.
+                        </p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Qty (lama)</Label>
+                        <Input type="number" value={source.qtyTaken} disabled />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Vol (lama)</Label>
+                        <Input type="number" value={source.volumeTaken} disabled />
+                      </div>
+                    </div>
+                  ))}
+
+                {!item.sources.some((s) => s.isLegacy) ? (
+                  <>
+                    {partaiOptions.length === 0 ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                        <p className="font-medium">Belum ada partai dengan stok ketebalan</p>
+                        <p className="mt-1 text-xs leading-relaxed">
+                          Buka{" "}
+                          <Link href="/purchases" className="underline font-medium">
+                            Partai pembelian
+                          </Link>{" "}
+                          dan pastikan tiap partai punya baris stok (default 0,6 &amp; 1,2 mm), lalu
+                          refresh halaman ini.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {item.sources
+                      .filter((s) => !s.isLegacy)
+                      .map((source) => {
+                        const mm = parseThicknessMmForStock(item.thickness);
+                        const stockForItem =
+                          mm && source.woodPurchaseId
+                            ? thicknessStockOptions.find(
+                                (o) =>
+                                  o.purchaseId === source.woodPurchaseId &&
+                                  thicknessMmMatches(o.thicknessMm, mm),
+                              )
+                            : null;
+                        const qtyNum = Number(item.qty || 0);
+                        const after =
+                          stockForItem != null
+                            ? stockForItem.qtyAvailableEffective - qtyNum
+                            : null;
+
+                        return (
+                          <div key={source.id} className="grid gap-3 md:grid-cols-12">
+                            <div className="md:col-span-5">
+                              <Label>Sumber Partai</Label>
+                              <select
+                                className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                                value={source.woodPurchaseId}
+                                disabled={partaiOptions.length === 0}
+                                onChange={(event) =>
+                                  updateSource(
+                                    item.id,
+                                    source.id,
+                                    "woodPurchaseId",
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">-- Pilih partai --</option>
+                                {partaiOptions.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.batchCode}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="md:col-span-7 space-y-1 text-xs text-muted-foreground">
+                              <p>
+                                <span className="font-medium text-foreground">Tebal item:</span>{" "}
+                                {item.thickness?.trim() ? item.thickness : "—"}{" "}
+                                {mm ? (
+                                  <span className="text-foreground">mm</span>
+                                ) : (
+                                  <span className="text-amber-600">(isi kolom Tebal)</span>
+                                )}
+                              </p>
+                              <p>
+                                <span className="font-medium text-foreground">Qty item:</span>{" "}
+                                {qtyNum.toLocaleString("id-ID")}
+                              </p>
+                              {stockForItem ? (
+                                <>
+                                  <p>
+                                    <span className="font-medium text-foreground">
+                                      Stok partai untuk tebal ini:
+                                    </span>{" "}
+                                    {stockForItem.qtyAvailableEffective.toLocaleString("id-ID")}
+                                    {stockForItem.unit ? ` ${stockForItem.unit}` : ""}
+                                  </p>
+                                  <p>
+                                    <span className="font-medium text-foreground">
+                                      Sisa setelah transaksi (simulasi):
+                                    </span>{" "}
+                                    {(after ?? 0).toLocaleString("id-ID")}
+                                  </p>
+                                </>
+                              ) : source.woodPurchaseId && mm ? (
+                                <p className="text-amber-600">
+                                  Partai ini tidak punya baris stok untuk ketebalan {mm} mm.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </>
+                ) : null}
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                {hasPartaiNew && !hasLegacySources ? (
+                  <p>
+                    Stok partai berkurang sebesar qty item untuk ketebalan sesuai kolom Tebal.
+                  </p>
+                ) : null}
+                {hasLegacySources && sourceVolumeTotal > 0 ? (
+                  <p className="inline">
+                    Total volume (alokasi lama):{" "}
+                    {sourceVolumeTotal.toLocaleString("id-ID")}
+                  </p>
+                ) : null}
+                {qtyMismatch && (
+                  <span className="ml-2 text-amber-600">
+                    Peringatan: qty item tidak sama dengan total qty alokasi log lama.
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Subtotal item {index + 1}: Rp{" "}
+                {(Number(item.qty || 0) * Number(item.price || 0)).toLocaleString("id-ID")}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-4">
+        <p className="text-sm text-muted-foreground">Estimasi Grand Total</p>
+        <p className="text-lg font-semibold">
+          Rp {estimatedTotal.toLocaleString("id-ID")}
+        </p>
+      </div>
+
+      {allocationError ? (
+        <p className="text-sm text-destructive">{allocationError}</p>
+      ) : null}
+
+      <Button type="submit">{submitLabel}</Button>
+    </form>
+  );
+}
