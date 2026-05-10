@@ -12,6 +12,11 @@ const envSchema = z.object({
     .min(1, "SUPABASE_SERVICE_ROLE_KEY belum diisi di .env.local"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL belum diisi di .env.local"),
   DIRECT_URL: z.string().min(1, "DIRECT_URL belum diisi di .env.local"),
+  /**
+   * Set true untuk Next.js dev / Node panjang: Prisma memakai DIRECT_URL (sesi Postgres),
+   * hindari Supavisor transaction pooler yang sering memicu 08P01 dengan query engine Prisma.
+   */
+  PRISMA_DATABASE_USE_DIRECT: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -27,3 +32,8 @@ if (!parsedEnv.success) {
 }
 
 export const env = parsedEnv.data;
+
+export function prismaUsesDirectDatabaseUrl(): boolean {
+  const v = env.PRISMA_DATABASE_USE_DIRECT?.trim().toLowerCase();
+  return v === "true" || v === "1";
+}

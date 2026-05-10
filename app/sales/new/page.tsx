@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SaleForm } from "@/components/sales/sale-form";
 import { getCustomers } from "@/lib/services/customer-service";
+import { getActiveVeneerTemplates } from "@/lib/services/veneer-template-service";
 import { getThicknessStockOptionsForSaleForm } from "@/lib/services/wood-purchase-service";
 
 export default async function NewSalePage() {
-  const [customers, thicknessStockOptions] = await Promise.all([
+  const [customers, thicknessStockOptions, veneerTemplates] = await Promise.all([
     getCustomers(),
     getThicknessStockOptionsForSaleForm(),
+    getActiveVeneerTemplates(),
   ]);
 
   return (
@@ -56,6 +58,7 @@ export default async function NewSalePage() {
               <SaleForm
                 customers={customers}
                 thicknessStockOptions={thicknessStockOptions}
+                veneerTemplates={veneerTemplates}
                 action={createSaleAction}
                 submitLabel="Simpan Penjualan"
               />

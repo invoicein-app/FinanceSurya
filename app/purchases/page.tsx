@@ -10,7 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getWoodPurchases } from "@/lib/services/wood-purchase-service";
+import {
+  getWoodPurchases,
+  sumWoodPurchaseDetailVolume,
+} from "@/lib/services/wood-purchase-service";
 
 export default async function PurchasesPage() {
   const purchases = await getWoodPurchases();
@@ -34,21 +37,23 @@ export default async function PurchasesPage() {
           <CardTitle>Riwayat Pembelian Partai</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          {/* w-auto: hindari kolom meregang memenuhi card — jarak antar kolom mengikuti konten */}
+          <Table className="w-auto max-w-full">
             <TableHeader>
               <TableRow>
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Kode Batch</TableHead>
                 <TableHead>Vendor</TableHead>
-                <TableHead>Jumlah Item</TableHead>
-                <TableHead className="text-right">Grand Total</TableHead>
+                <TableHead className="text-right tabular-nums">Jumlah item</TableHead>
+                <TableHead className="text-right tabular-nums">Volume detail</TableHead>
+                <TableHead className="text-right tabular-nums">Grand Total</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {purchases.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Belum ada data partai pembelian.
                   </TableCell>
                 </TableRow>
@@ -60,8 +65,13 @@ export default async function PurchasesPage() {
                     </TableCell>
                     <TableCell>{purchase.batchCode}</TableCell>
                     <TableCell>{purchase.vendor.name}</TableCell>
-                    <TableCell>{purchase.items.length}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right tabular-nums">
+                      {purchase.items.length}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {sumWoodPurchaseDetailVolume(purchase.items).toLocaleString("id-ID")}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
                       Rp {Number(purchase.grandTotal).toLocaleString("id-ID")}
                     </TableCell>
                     <TableCell className="text-right">

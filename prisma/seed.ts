@@ -97,10 +97,10 @@ async function main() {
     });
   }
 
-  /** Stok veneer per ketebalan standar: 0,6 & 1,2 mm, qty awal 0 (sama seperti partai baru). */
+  /** Stok veneer per ketebalan standar: 0.6 & 1.2 mm, qty awal 0 (selaras dengan partai baru — satuan m²). */
   const defaultThicknessRows: { thicknessMm: string; qty: string; unit: string }[] = [
-    { thicknessMm: "0.6", qty: "0", unit: "lembar" },
-    { thicknessMm: "1.2", qty: "0", unit: "lembar" },
+    { thicknessMm: "0.6", qty: "0", unit: "m2" },
+    { thicknessMm: "1.2", qty: "0", unit: "m2" },
   ];
 
   const allPurchases = await prisma.woodPurchase.findMany({ select: { id: true } });

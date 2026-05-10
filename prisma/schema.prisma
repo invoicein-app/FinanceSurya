@@ -26,6 +26,24 @@ model Product {
   saleItems    SaleItem[]
 }
 
+model VeneerTemplate {
+  id           String   @id @default(cuid())
+  templateName String
+  specKey      String   @unique
+  thickness    String?
+  width        String?
+  length       String?
+  grade        String?
+  unit         String?
+  defaultPrice Decimal? @db.Decimal(14, 2)
+  isActive     Boolean  @default(true)
+  source       String   @default("auto")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+}
+
 model Customer {
   id                 String              @id @default(cuid())
   name               String              @unique

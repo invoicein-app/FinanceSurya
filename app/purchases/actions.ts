@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { normalizeThicknessMmFormValue } from "@/lib/sales/thickness-mm";
 import {
   createThicknessStockRow,
   createWoodPurchase,
@@ -107,8 +108,19 @@ function normalizeOptionalNumber(value: FormDataEntryValue | undefined) {
   return Number.isNaN(number) ? undefined : number;
 }
 
+const thicknessMmSchema = z.preprocess(
+  (val) => normalizeThicknessMmFormValue(val),
+  z
+    .string()
+    .min(1, "Ketebalan wajib diisi.")
+    .transform((s) => Number(s))
+    .refine((n) => Number.isFinite(n) && n > 0, {
+      message: "Ketebalan harus angka lebih dari 0; pakai titik untuk desimal (mis. 0.6).",
+    }),
+);
+
 const thicknessStockSchema = z.object({
-  thicknessMm: z.coerce.number().positive("Ketebalan harus lebih dari 0"),
+  thicknessMm: thicknessMmSchema,
   qtyInitial: z.coerce.number().min(0, "Qty tidak boleh negatif"),
   unit: z.string().optional(),
 });

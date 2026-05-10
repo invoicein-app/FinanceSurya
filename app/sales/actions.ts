@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createSale, updateSale, type CreateSaleItemInput } from "@/lib/services/sale-service";
@@ -19,6 +20,8 @@ export async function createSaleAction(formData: FormData) {
   revalidatePath("/price-list");
   revalidatePath("/");
   revalidatePath("/stocks");
+
+  redirect("/sales");
 }
 
 export async function updateSaleAction(id: string, formData: FormData) {
@@ -42,7 +45,17 @@ function parseSaleForm(formData: FormData) {
 
   const rawItems = String(formData.get("itemsPayload") ?? "[]");
   const parsedItems = JSON.parse(rawItems) as CreateSaleItemInput[];
-  const items = parsedItems.filter((item) => item.itemName || item.qty || item.price);
+  const items = parsedItems.filter(
+    (item) =>
+      item.qty ||
+      item.price ||
+      item.thickness ||
+      item.width ||
+      item.length ||
+      item.category ||
+      item.unit ||
+      item.note,
+  );
 
   if (items.length === 0) {
     throw new Error("Minimal satu item penjualan harus diisi.");

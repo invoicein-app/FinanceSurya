@@ -1,8 +1,35 @@
-import type { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
+import { collectCustomerPriceListUpsertOps } from "@/lib/pricing/upsert-customer-price-list";
+import { buildVeneerItemDescription } from "@/lib/sales/item-description";
 import { parseThicknessMmForStock } from "@/lib/sales/thickness-mm";
-import { upsertCustomerPriceListFromSaleLines } from "@/lib/services/customer-price-list-service";
+import { collectVeneerTemplateSaleSqlOps } from "@/lib/services/veneer-template-service";
 import { prisma } from "@/lib/prisma";
+
+/** Karakter NUL tidak valid di teks Postgres dan bisa memicu error protokol (08P01). */
+function sanitizePgText(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  const s = String(value).replace(/\u0000/g, "").trim();
+  return s.length === 0 ? null : s;
+}
+
+function sanitizePgRequired(value: unknown): string {
+  const s = String(value ?? "").replace(/\u0000/g, "").trim();
+  return s.length > 0 ? s : "(tanpa nama)";
+}
+
+/** JSON form bisa mengirim angka untuk kolom yang di schema bertipe String — adapter `pg` tidak meng-coerce seperti engine Rust. */
+function coerceOptionalTrimmedText(value: unknown): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  const s = String(value).replace(/\u0000/g, "").trim();
+  return s.length === 0 ? undefined : s;
+}
+
+type StockResolveDb = Pick<PrismaClient, "woodPurchaseThicknessStock">;
 
 export type CreateSaleItemInput = {
   itemName: string;
@@ -85,62 +112,97 @@ export async function createSale(input: CreateSaleInput) {
 
   const grandTotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
 
-  return prisma.$transaction(async (tx) => {
-    const customer = input.customerId
-      ? await tx.customer.findUnique({
-          where: { id: input.customerId },
-        })
-      : null;
+  const customer = input.customerId
+    ? await prisma.customer.findUnique({
+        where: { id: input.customerId },
+      })
+    : null;
 
-    if (!customer && input.customerId) {
-      throw new Error("Customer tidak ditemukan.");
-    }
+  if (!customer && input.customerId) {
+    throw new Error("Customer tidak ditemukan.");
+  }
 
-    const sale = await tx.sale.create({
-      data: {
-        saleDate: input.saleDate,
-        customerId: customer?.id,
-        customerName: customer?.name,
-        note: input.note,
-        grandTotal: grandTotal.toString(),
-      },
-    });
+  const preparedLines = await prepareSaleLines(prisma, normalizedItems);
+  const { thickness: thickDec, legacy: legacyDec } =
+    aggregateDeductionsFromPreparedLines(preparedLines);
 
-    for (const item of normalizedItems) {
-      const createdSaleItem = await tx.saleItem.create({
+  const veneerLines = normalizedItems.map((item) => ({
+    thickness: item.thickness,
+    width: item.width,
+    length: item.length,
+    grade: item.category,
+    unit: item.unit,
+    price: item.price,
+  }));
+  const veneerOps = await collectVeneerTemplateSaleSqlOps(prisma, veneerLines);
+
+  // Header penjualan terpisah (perlu sale.id). Batch `$transaction([...])` + nested writes ke pooler
+  // transaksi Supabase sering memicu Postgres 08P01 — jalankan mutasi berurutan (satu query per round-trip).
+  const sale = await prisma.sale.create({
+    data: {
+      saleDate: input.saleDate,
+      customerId: customer?.id ?? null,
+      customerName: sanitizePgText(customer?.name ?? null),
+      note: sanitizePgText(input.note ?? null),
+      grandTotal: grandTotal.toString(),
+    },
+  });
+
+  const appliedThickDec = new Map<string, number>();
+  const appliedLegacyDec = new Map<string, { qty: number; volume: number }>();
+
+  try {
+    for (const { item, sourcesPersisted } of preparedLines) {
+      const row = await prisma.saleItem.create({
         data: {
           saleId: sale.id,
-          itemName: item.itemName,
-          category: item.category ?? null,
-          thickness: item.thickness ?? null,
-          width: item.width ?? null,
-          length: item.length ?? null,
-          unit: item.unit ?? null,
+          itemName: sanitizePgRequired(item.itemName),
+          category: sanitizePgText(item.category),
+          thickness: sanitizePgText(item.thickness),
+          width: sanitizePgText(item.width),
+          length: sanitizePgText(item.length),
+          unit: sanitizePgText(item.unit),
           qty: item.qty.toString(),
           price: item.price.toString(),
           subtotal: item.subtotal.toString(),
-          note: item.note || null,
+          note: sanitizePgText(item.note ?? null),
         },
       });
 
-      for (const source of item.sources) {
-        const row = await resolveSourceToPersistedRow(tx, item, source);
-        await applySaleSourceDeduction(tx, row);
-        await tx.saleItemSource.create({
+      for (const src of sourcesPersisted) {
+        await prisma.saleItemSource.create({
           data: {
-            saleItemId: createdSaleItem.id,
-            purchaseItemId: row.purchaseItemId,
-            thicknessStockId: row.thicknessStockId,
-            qtyTaken: row.qtyTaken.toString(),
-            volumeTaken: row.volumeTaken.toString(),
-            costAmount: row.costAmount.toString(),
+            saleItemId: row.id,
+            purchaseItemId: src.purchaseItemId,
+            thicknessStockId: src.thicknessStockId,
+            qtyTaken: src.qtyTaken.toString(),
+            volumeTaken: src.volumeTaken.toString(),
+            costAmount: src.costAmount.toString(),
           },
         });
       }
     }
 
+    for (const [stockId, qty] of thickDec) {
+      await prisma.woodPurchaseThicknessStock.update({
+        where: { id: stockId },
+        data: { qtyAvailable: { decrement: qty.toString() } },
+      });
+      appliedThickDec.set(stockId, qty);
+    }
+    for (const [purchaseItemId, { qty, volume }] of legacyDec) {
+      await prisma.woodPurchaseItem.update({
+        where: { id: purchaseItemId },
+        data: {
+          remainingQty: { decrement: qty.toString() },
+          remainingVolume: { decrement: volume.toString() },
+        },
+      });
+      appliedLegacyDec.set(purchaseItemId, { qty, volume });
+    }
+
     if (customer?.id) {
-      await upsertCustomerPriceListFromSaleLines(tx, {
+      const priceOps = collectCustomerPriceListUpsertOps(prisma, {
         customerId: customer.id,
         saleDate: input.saleDate,
         lines: normalizedItems.map((item) => ({
@@ -153,10 +215,39 @@ export async function createSale(input: CreateSaleInput) {
           price: item.price,
         })),
       });
+      for (const op of priceOps) {
+        await op;
+      }
     }
 
-    return sale;
-  });
+    for (const op of veneerOps) {
+      await op;
+    }
+  } catch (error) {
+    for (const [stockId, qty] of appliedThickDec) {
+      await prisma.woodPurchaseThicknessStock
+        .update({
+          where: { id: stockId },
+          data: { qtyAvailable: { increment: qty.toString() } },
+        })
+        .catch(() => undefined);
+    }
+    for (const [purchaseItemId, { qty, volume }] of appliedLegacyDec) {
+      await prisma.woodPurchaseItem
+        .update({
+          where: { id: purchaseItemId },
+          data: {
+            remainingQty: { increment: qty.toString() },
+            remainingVolume: { increment: volume.toString() },
+          },
+        })
+        .catch(() => undefined);
+    }
+    await prisma.sale.delete({ where: { id: sale.id } }).catch(() => undefined);
+    throw error;
+  }
+
+  return sale;
 }
 
 export async function updateSale(id: string, input: UpdateSaleInput) {
@@ -167,108 +258,160 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
   const normalizedItems = normalizeSaleItems(input.items);
   const grandTotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
 
-  return prisma.$transaction(async (tx) => {
-    const customer = input.customerId
-      ? await tx.customer.findUnique({
-          where: { id: input.customerId },
-        })
-      : null;
+  const existingSaleItems = await prisma.saleItem.findMany({
+    where: { saleId: id },
+    include: { sources: true },
+  });
 
-    if (!customer && input.customerId) {
-      throw new Error("Customer tidak ditemukan.");
-    }
+  const customer = input.customerId
+    ? await prisma.customer.findUnique({
+        where: { id: input.customerId },
+      })
+    : null;
 
-    const existingSaleItems = await tx.saleItem.findMany({
-      where: { saleId: id },
-      include: {
-        sources: true,
-      },
-    });
+  if (!customer && input.customerId) {
+    throw new Error("Customer tidak ditemukan.");
+  }
 
-    for (const saleItem of existingSaleItems) {
-      for (const source of saleItem.sources) {
-        await rollbackSaleSourceDeduction(tx, source);
+  const preparedLines = await prepareSaleLines(prisma, normalizedItems);
+  const { thickness: newThick, legacy: newLegacy } =
+    aggregateDeductionsFromPreparedLines(preparedLines);
+
+  const rollbackThick = new Map<string, number>();
+  const rollbackLegacy = new Map<string, { qty: number; volume: number }>();
+  for (const si of existingSaleItems) {
+    for (const src of si.sources) {
+      if (src.thicknessStockId) {
+        rollbackThick.set(
+          src.thicknessStockId,
+          (rollbackThick.get(src.thicknessStockId) ?? 0) + Number(src.qtyTaken),
+        );
       }
-    }
-
-    await tx.saleItemSource.deleteMany({
-      where: {
-        saleItem: {
-          saleId: id,
-        },
-      },
-    });
-
-    await tx.saleItem.deleteMany({
-      where: { saleId: id },
-    });
-
-    await tx.sale.update({
-      where: { id },
-      data: {
-        saleDate: input.saleDate,
-        customerId: customer?.id,
-        customerName: customer?.name,
-        note: input.note,
-        grandTotal: grandTotal.toString(),
-      },
-    });
-
-    for (const item of normalizedItems) {
-      const createdSaleItem = await tx.saleItem.create({
-        data: {
-          saleId: id,
-          itemName: item.itemName,
-          category: item.category ?? null,
-          thickness: item.thickness ?? null,
-          width: item.width ?? null,
-          length: item.length ?? null,
-          unit: item.unit ?? null,
-          qty: item.qty.toString(),
-          price: item.price.toString(),
-          subtotal: item.subtotal.toString(),
-          note: item.note || null,
-        },
-      });
-
-      for (const source of item.sources) {
-        const row = await resolveSourceToPersistedRow(tx, item, source);
-        await applySaleSourceDeduction(tx, row);
-        await tx.saleItemSource.create({
-          data: {
-            saleItemId: createdSaleItem.id,
-            purchaseItemId: row.purchaseItemId,
-            thicknessStockId: row.thicknessStockId,
-            qtyTaken: row.qtyTaken.toString(),
-            volumeTaken: row.volumeTaken.toString(),
-            costAmount: row.costAmount.toString(),
-          },
+      if (src.purchaseItemId) {
+        const cur = rollbackLegacy.get(src.purchaseItemId) ?? { qty: 0, volume: 0 };
+        rollbackLegacy.set(src.purchaseItemId, {
+          qty: cur.qty + Number(src.qtyTaken),
+          volume: cur.volume + Number(src.volumeTaken),
         });
       }
     }
+  }
 
-    if (customer?.id) {
-      await upsertCustomerPriceListFromSaleLines(tx, {
-        customerId: customer.id,
-        saleDate: input.saleDate,
-        lines: normalizedItems.map((item) => ({
-          itemName: item.itemName,
-          category: item.category,
-          thickness: item.thickness,
-          width: item.width,
-          length: item.length,
-          unit: item.unit,
-          price: item.price,
-        })),
-      });
-    }
+  const veneerLines = normalizedItems.map((item) => ({
+    thickness: item.thickness,
+    width: item.width,
+    length: item.length,
+    grade: item.category,
+    unit: item.unit,
+    price: item.price,
+  }));
+  const veneerOps = await collectVeneerTemplateSaleSqlOps(prisma, veneerLines);
 
-    return tx.sale.findUnique({
-      where: { id },
-      include: {
-        saleItems: true,
+  for (const [stockId, qty] of rollbackThick) {
+    await prisma.woodPurchaseThicknessStock.update({
+      where: { id: stockId },
+      data: { qtyAvailable: { increment: qty.toString() } },
+    });
+  }
+  for (const [purchaseItemId, { qty, volume }] of rollbackLegacy) {
+    await prisma.woodPurchaseItem.update({
+      where: { id: purchaseItemId },
+      data: {
+        remainingQty: { increment: qty.toString() },
+        remainingVolume: { increment: volume.toString() },
       },
     });
+  }
+
+  await prisma.saleItemSource.deleteMany({
+    where: { saleItem: { saleId: id } },
+  });
+  await prisma.saleItem.deleteMany({ where: { saleId: id } });
+
+  await prisma.sale.update({
+    where: { id },
+    data: {
+      saleDate: input.saleDate,
+      customerId: customer?.id ?? null,
+      customerName: sanitizePgText(customer?.name ?? null),
+      note: sanitizePgText(input.note ?? null),
+      grandTotal: grandTotal.toString(),
+    },
+  });
+
+  for (const { item, sourcesPersisted } of preparedLines) {
+    const row = await prisma.saleItem.create({
+      data: {
+        saleId: id,
+        itemName: sanitizePgRequired(item.itemName),
+        category: sanitizePgText(item.category),
+        thickness: sanitizePgText(item.thickness),
+        width: sanitizePgText(item.width),
+        length: sanitizePgText(item.length),
+        unit: sanitizePgText(item.unit),
+        qty: item.qty.toString(),
+        price: item.price.toString(),
+        subtotal: item.subtotal.toString(),
+        note: sanitizePgText(item.note ?? null),
+      },
+    });
+
+    for (const src of sourcesPersisted) {
+      await prisma.saleItemSource.create({
+        data: {
+          saleItemId: row.id,
+          purchaseItemId: src.purchaseItemId,
+          thicknessStockId: src.thicknessStockId,
+          qtyTaken: src.qtyTaken.toString(),
+          volumeTaken: src.volumeTaken.toString(),
+          costAmount: src.costAmount.toString(),
+        },
+      });
+    }
+  }
+
+  for (const [stockId, qty] of newThick) {
+    await prisma.woodPurchaseThicknessStock.update({
+      where: { id: stockId },
+      data: { qtyAvailable: { decrement: qty.toString() } },
+    });
+  }
+  for (const [purchaseItemId, { qty, volume }] of newLegacy) {
+    await prisma.woodPurchaseItem.update({
+      where: { id: purchaseItemId },
+      data: {
+        remainingQty: { decrement: qty.toString() },
+        remainingVolume: { decrement: volume.toString() },
+      },
+    });
+  }
+
+  if (customer?.id) {
+    const priceOps = collectCustomerPriceListUpsertOps(prisma, {
+      customerId: customer.id,
+      saleDate: input.saleDate,
+      lines: normalizedItems.map((item) => ({
+        itemName: item.itemName,
+        category: item.category,
+        thickness: item.thickness,
+        width: item.width,
+        length: item.length,
+        unit: item.unit,
+        price: item.price,
+      })),
+    });
+    for (const op of priceOps) {
+      await op;
+    }
+  }
+
+  for (const op of veneerOps) {
+    await op;
+  }
+
+  return prisma.sale.findUnique({
+    where: { id },
+    include: { saleItems: true },
   });
 }
 
@@ -297,6 +440,24 @@ type NormalizedSaleLine = {
   sources: SaleItemSourceNormalized[];
 };
 
+/**
+ * Paksa kolom teks jadi string primitif — adapter `pg` memicu P2032 jika masih typeof number (mis. dari JSON.parse).
+ */
+function freezeNormalizedSaleLineTextFields(line: NormalizedSaleLine): NormalizedSaleLine {
+  return {
+    ...line,
+    itemName: String(line.itemName ?? "").trim() || "(tanpa nama)",
+    category:
+      line.category != null ? String(line.category).replace(/\u0000/g, "").trim() || undefined : undefined,
+    thickness:
+      line.thickness != null ? String(line.thickness).replace(/\u0000/g, "").trim() || undefined : undefined,
+    width: line.width != null ? String(line.width).replace(/\u0000/g, "").trim() || undefined : undefined,
+    length: line.length != null ? String(line.length).replace(/\u0000/g, "").trim() || undefined : undefined,
+    unit: line.unit != null ? String(line.unit).replace(/\u0000/g, "").trim() || undefined : undefined,
+    note: line.note != null ? String(line.note).replace(/\u0000/g, "").trim() || undefined : undefined,
+  };
+}
+
 type PersistedSourceRow = {
   purchaseItemId: string | null;
   thicknessStockId: string | null;
@@ -305,8 +466,13 @@ type PersistedSourceRow = {
   costAmount: number;
 };
 
+type PreparedSaleLine = {
+  item: NormalizedSaleLine;
+  sourcesPersisted: PersistedSourceRow[];
+};
+
 async function resolveSourceToPersistedRow(
-  tx: Prisma.TransactionClient,
+  db: StockResolveDb,
   item: Pick<NormalizedSaleLine, "itemName" | "thickness" | "qty">,
   source: SaleItemSourceNormalized,
 ): Promise<PersistedSourceRow> {
@@ -321,19 +487,14 @@ async function resolveSourceToPersistedRow(
   }
 
   if (source.kind === "thickness_direct") {
-    const row = await tx.woodPurchaseThicknessStock.findUnique({
+    const row = await db.woodPurchaseThicknessStock.findUnique({
       where: { id: source.thicknessStockId },
       include: { purchase: true },
     });
     if (!row) {
       throw new Error("Baris stok ketebalan tidak ditemukan.");
     }
-    const available = Number(row.qtyAvailable);
-    if (available < source.qtyTaken) {
-      throw new Error(
-        `Stok tidak cukup untuk batch ${row.purchase.batchCode}, ketebalan ${row.thicknessMm} mm: tersisa ${available}, dibutuhkan ${source.qtyTaken}.`,
-      );
-    }
+    // qtyAvailable boleh menjadi negatif (penjualan maju vs laporan stok veneer yang belum masuk).
     return {
       purchaseItemId: null,
       thicknessStockId: source.thicknessStockId,
@@ -350,7 +511,7 @@ async function resolveSourceToPersistedRow(
     );
   }
 
-  const row = await tx.woodPurchaseThicknessStock.findUnique({
+  const row = await db.woodPurchaseThicknessStock.findUnique({
     where: {
       purchaseId_thicknessMm: {
         purchaseId: source.woodPurchaseId,
@@ -366,13 +527,6 @@ async function resolveSourceToPersistedRow(
     );
   }
 
-  const available = Number(row.qtyAvailable);
-  if (available < item.qty) {
-    throw new Error(
-      `Stok tidak cukup untuk batch ${row.purchase.batchCode}, ketebalan ${mm} mm: tersisa ${available}, dibutuhkan ${item.qty}.`,
-    );
-  }
-
   return {
     purchaseItemId: null,
     thicknessStockId: row.id,
@@ -382,85 +536,50 @@ async function resolveSourceToPersistedRow(
   };
 }
 
-type DeductionSource = {
-  purchaseItemId: string | null;
-  thicknessStockId: string | null;
-  qtyTaken: number;
-  volumeTaken: number;
-  costAmount: number;
-};
-
-async function applySaleSourceDeduction(tx: Prisma.TransactionClient, source: DeductionSource) {
-  if (source.thicknessStockId) {
-    const row = await tx.woodPurchaseThicknessStock.findUnique({
-      where: { id: source.thicknessStockId },
-    });
-    if (!row) {
-      throw new Error("Baris stok ketebalan tidak ditemukan.");
+async function prepareSaleLines(
+  db: StockResolveDb,
+  normalizedItems: NormalizedSaleLine[],
+): Promise<PreparedSaleLine[]> {
+  const preparedLines: PreparedSaleLine[] = [];
+  for (const item of normalizedItems) {
+    const sourcesPersisted: PersistedSourceRow[] = [];
+    for (const source of item.sources) {
+      sourcesPersisted.push(await resolveSourceToPersistedRow(db, item, source));
     }
-    await tx.woodPurchaseThicknessStock.update({
-      where: { id: source.thicknessStockId },
-      data: {
-        qtyAvailable: {
-          decrement: source.qtyTaken.toString(),
-        },
-      },
-    });
-    return;
+    preparedLines.push({ item, sourcesPersisted });
   }
-
-  if (source.purchaseItemId) {
-    await tx.woodPurchaseItem.update({
-      where: { id: source.purchaseItemId },
-      data: {
-        remainingQty: {
-          decrement: source.qtyTaken.toString(),
-        },
-        remainingVolume: {
-          decrement: source.volumeTaken.toString(),
-        },
-      },
-    });
-  }
+  return preparedLines;
 }
 
-async function rollbackSaleSourceDeduction(
-  tx: Prisma.TransactionClient,
-  source: { thicknessStockId: string | null; purchaseItemId: string | null; qtyTaken: unknown; volumeTaken: unknown },
-) {
-  if (source.thicknessStockId) {
-    await tx.woodPurchaseThicknessStock.update({
-      where: { id: source.thicknessStockId },
-      data: {
-        qtyAvailable: {
-          increment: Number(source.qtyTaken).toString(),
-        },
-      },
-    });
-    return;
+function aggregateDeductionsFromPreparedLines(prepared: PreparedSaleLine[]): {
+  thickness: Map<string, number>;
+  legacy: Map<string, { qty: number; volume: number }>;
+} {
+  const thickness = new Map<string, number>();
+  const legacy = new Map<string, { qty: number; volume: number }>();
+  for (const { sourcesPersisted } of prepared) {
+    for (const row of sourcesPersisted) {
+      if (row.thicknessStockId) {
+        thickness.set(
+          row.thicknessStockId,
+          (thickness.get(row.thicknessStockId) ?? 0) + row.qtyTaken,
+        );
+      }
+      if (row.purchaseItemId) {
+        const cur = legacy.get(row.purchaseItemId) ?? { qty: 0, volume: 0 };
+        legacy.set(row.purchaseItemId, {
+          qty: cur.qty + row.qtyTaken,
+          volume: cur.volume + row.volumeTaken,
+        });
+      }
+    }
   }
-  if (source.purchaseItemId) {
-    await tx.woodPurchaseItem.update({
-      where: { id: source.purchaseItemId },
-      data: {
-        remainingQty: {
-          increment: Number(source.qtyTaken).toString(),
-        },
-        remainingVolume: {
-          increment: Number(source.volumeTaken).toString(),
-        },
-      },
-    });
-  }
+  return { thickness, legacy };
 }
 
 function normalizeSaleItems(items: CreateSaleItemInput[]): NormalizedSaleLine[] {
   const normalizedItems = items
     .map((item) => {
-      const itemName = item.itemName.trim();
-      if (!itemName) {
-        throw new Error("Nama item wajib diisi.");
-      }
       if (item.qty <= 0) {
         throw new Error("Qty harus lebih dari 0.");
       }
@@ -528,11 +647,21 @@ function normalizeSaleItems(items: CreateSaleItemInput[]): NormalizedSaleLine[] 
         throw new Error("Satu item tidak boleh memakai lebih dari satu jenis alokasi stok ketebalan.");
       }
 
-      const category = item.category?.trim() || undefined;
-      const thickness = item.thickness?.trim() || undefined;
-      const width = item.width?.trim() || undefined;
-      const length = item.length?.trim() || undefined;
-      const unit = item.unit?.trim() || undefined;
+      const category = coerceOptionalTrimmedText(item.category);
+      const thickness = coerceOptionalTrimmedText(item.thickness);
+      const width = coerceOptionalTrimmedText(item.width);
+      const length = coerceOptionalTrimmedText(item.length);
+      const unit = coerceOptionalTrimmedText(item.unit);
+      const note = coerceOptionalTrimmedText(item.note);
+      const explicitName = coerceOptionalTrimmedText(item.itemName);
+      const itemName =
+        explicitName ||
+        buildVeneerItemDescription({
+          thickness,
+          width,
+          length,
+          mutu: category,
+        });
 
       return {
         itemName,
@@ -543,12 +672,13 @@ function normalizeSaleItems(items: CreateSaleItemInput[]): NormalizedSaleLine[] 
         unit,
         qty: item.qty,
         price: item.price,
-        note: item.note,
+        note,
         subtotal: item.qty * item.price,
         sources: parsedSources,
       };
     })
-    .filter((item) => item.itemName.length > 0);
+    .filter((item) => item.itemName.length > 0)
+    .map(freezeNormalizedSaleLineTextFields);
 
   return normalizedItems;
 }

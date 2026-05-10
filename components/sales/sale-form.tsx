@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import {
-  fetchCustomerItemSuggestionsAction,
-  fetchCustomerPriceListHintsAction,
-} from "@/app/sales/price-hints";
+import { fetchCustomerPriceListHintsAction } from "@/app/sales/price-hints";
+import { buildVeneerItemDescription } from "@/lib/sales/item-description";
 import {
   CustomerCombobox,
   type CustomerOption,
@@ -16,7 +14,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { buildSaleItemKey } from "@/lib/item-key";
-import { parseThicknessMmForStock, thicknessMmMatches } from "@/lib/sales/thickness-mm";
+import {
+  parseThicknessMmForStock,
+  sanitizeSaleQtyTyping,
+  sanitizeThicknessMmTyping,
+  thicknessMmMatches,
+} from "@/lib/sales/thickness-mm";
+import { buildVeneerSpecKey } from "@/lib/sales/veneer-template-spec";
+import type { VeneerTemplateRow } from "@/lib/services/veneer-template-service";
 import type { ThicknessStockOption } from "@/lib/services/wood-purchase-service";
 
 type ItemSourceRow = {
@@ -36,7 +41,8 @@ type ItemSourceRow = {
 
 type ItemRow = {
   id: string;
-  itemName: string;
+  templateId?: string;
+  itemName?: string;
   category: string;
   thickness: string;
   width: string;
@@ -46,19 +52,6 @@ type ItemRow = {
   price: string;
   note: string;
   sources: ItemSourceRow[];
-};
-
-type CustomerItemSuggestion = {
-  itemKey: string;
-  itemName: string;
-  category: string | null;
-  thickness: string | null;
-  width: string | null;
-  length: string | null;
-  unit: string | null;
-  latestPrice: string;
-  lastSaleDate: Date;
-  usageCount: number;
 };
 
 type SaleFormValues = {
@@ -71,19 +64,24 @@ type SaleFormValues = {
 type SaleFormProps = {
   customers: CustomerOption[];
   thicknessStockOptions: ThicknessStockOption[];
+  veneerTemplates: VeneerTemplateRow[];
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   initialValues?: SaleFormValues;
 };
 
+/** Selaras dengan stok partai per ketebalan (DEFAULT_THICKNESS_STOCK_UNIT). */
+const DEFAULT_SALE_ITEM_UNIT = "m2";
+
 const defaultRow = (): ItemRow => ({
   id: crypto.randomUUID(),
+  templateId: "",
   itemName: "",
   category: "",
   thickness: "",
   width: "",
   length: "",
-  unit: "",
+  unit: DEFAULT_SALE_ITEM_UNIT,
   qty: "1",
   price: "0",
   note: "",
@@ -104,6 +102,7 @@ const defaultRow = (): ItemRow => ({
 export function SaleForm({
   customers,
   thicknessStockOptions,
+  veneerTemplates,
   action,
   submitLabel,
   initialValues,
@@ -118,7 +117,6 @@ export function SaleForm({
   const [priceListHints, setPriceListHints] = useState<
     Record<string, { latestPrice: string }>
   >({});
-  const [rowSuggestions, setRowSuggestions] = useState<Record<string, CustomerItemSuggestion[]>>({});
   const [allocationError, setAllocationError] = useState<string | undefined>();
 
   const partaiOptions = useMemo(() => {
@@ -130,6 +128,14 @@ export function SaleForm({
     }
     return [...map.values()];
   }, [thicknessStockOptions]);
+
+  const templateById = useMemo(() => {
+    const map = new Map<string, VeneerTemplateRow>();
+    for (const tpl of veneerTemplates) {
+      map.set(tpl.id, tpl);
+    }
+    return map;
+  }, [veneerTemplates]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,16 +171,29 @@ export function SaleForm({
   const serializedItemsPayload = useMemo(() => {
     return JSON.stringify(
       items.map((item) => ({
-        itemName: item.itemName,
-        category: item.category || undefined,
-        thickness: item.thickness || undefined,
-        width: item.width || undefined,
-        length: item.length || undefined,
-        unit: item.unit || undefined,
+        itemName: buildVeneerItemDescription({
+          thickness: item.thickness,
+          width: item.width,
+          length: item.length,
+          mutu: item.category,
+        }),
+        category: item.category ? String(item.category) : undefined,
+        thickness: item.thickness ? String(item.thickness) : undefined,
+        width: item.width ? String(item.width) : undefined,
+        length: item.length ? String(item.length) : undefined,
+        unit: item.unit ? String(item.unit) : undefined,
         qty: Number(item.qty || 0),
         price: Number(item.price || 0),
-        note: item.note || undefined,
-        sources: item.sources.flatMap((source) => {
+        note: item.note ? String(item.note) : undefined,
+        sources: item.sources.flatMap<
+          | {
+              purchaseItemId: string;
+              qtyTaken: number;
+              volumeTaken: number;
+              costAmount: number;
+            }
+          | { woodPurchaseId: string }
+        >((source) => {
           if (source.isLegacy) {
             const qtyTaken = Number(source.qtyTaken || 0);
             const volumeTaken = Number(source.volumeTaken || 0);
@@ -202,16 +221,10 @@ export function SaleForm({
   const addItem = () => {
     const row = defaultRow();
     setItems((current) => [...current, row]);
-    setRowSuggestions((current) => ({ ...current, [row.id]: [] }));
   };
 
   const removeItem = (id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
-    setRowSuggestions((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
   };
 
   const updateItem = (
@@ -220,7 +233,74 @@ export function SaleForm({
     value: string,
   ) => {
     setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              [key]: value,
+              templateId:
+                key === "thickness" ||
+                key === "width" ||
+                key === "length" ||
+                key === "category" ||
+                key === "unit"
+                  ? ""
+                  : item.templateId,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const applyTemplateToItem = (itemId: string, templateId: string) => {
+    const template = templateById.get(templateId);
+    if (!template) {
+      setItems((current) =>
+        current.map((item) => (item.id === itemId ? { ...item, templateId: "" } : item)),
+      );
+      return;
+    }
+
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+        const nextThickness = template.thickness ?? "";
+        const nextWidth = template.width ?? "";
+        const nextLength = template.length ?? "";
+        const nextGrade = template.grade ?? "";
+        const nextUnit = template.unit?.trim() || DEFAULT_SALE_ITEM_UNIT;
+
+        const nextDescription = buildVeneerItemDescription({
+          thickness: nextThickness,
+          width: nextWidth,
+          length: nextLength,
+          mutu: nextGrade,
+        });
+        const itemKey = buildSaleItemKey({
+          itemName: nextDescription,
+          category: nextGrade || undefined,
+          thickness: nextThickness || undefined,
+          width: nextWidth || undefined,
+          length: nextLength || undefined,
+          unit: nextUnit || undefined,
+        });
+        const latestCustomerPrice = customerId
+          ? hintsForDisplay[itemKey]?.latestPrice
+          : undefined;
+
+        return {
+          ...item,
+          templateId,
+          thickness: nextThickness,
+          width: nextWidth,
+          length: nextLength,
+          category: nextGrade,
+          unit: nextUnit,
+          price: latestCustomerPrice ?? template.defaultPrice ?? item.price,
+        };
+      }),
     );
   };
 
@@ -244,46 +324,11 @@ export function SaleForm({
     );
   };
 
-  const requestSuggestions = async (itemId: string, keyword: string) => {
-    if (!customerId) {
-      return;
-    }
-    const suggestions = await fetchCustomerItemSuggestionsAction(customerId, keyword, 8);
-    setRowSuggestions((current) => ({
-      ...current,
-      [itemId]: suggestions,
-    }));
-  };
-
-  const applySuggestion = (itemId: string, suggestion: CustomerItemSuggestion) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              itemName: suggestion.itemName,
-              category: suggestion.category ?? "",
-              thickness: suggestion.thickness ?? "",
-              width: suggestion.width ?? "",
-              length: suggestion.length ?? "",
-              unit: suggestion.unit ?? "",
-              price: suggestion.latestPrice,
-            }
-          : item,
-      ),
-    );
-    setRowSuggestions((current) => ({
-      ...current,
-      [itemId]: [],
-    }));
-  };
-
   const onCustomerChange = (value: string) => {
     setCustomerId(value);
     setCustomerFieldError(undefined);
     setAllocationError(undefined);
     setPriceListHints({});
-    setRowSuggestions({});
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -295,6 +340,12 @@ export function SaleForm({
 
     const allocationProblems: string[] = [];
     for (const item of items) {
+      const itemLabel = buildVeneerItemDescription({
+        thickness: item.thickness,
+        width: item.width,
+        length: item.length,
+        mutu: item.category,
+      });
       if (item.sources.some((s) => s.isLegacy)) {
         continue;
       }
@@ -305,7 +356,7 @@ export function SaleForm({
       const mm = parseThicknessMmForStock(item.thickness);
       if (!mm) {
         allocationProblems.push(
-          `Item "${item.itemName || "tanpa nama"}": isi Tebal (mm) agar stok partai bisa dikurangi.`,
+          `Item "${itemLabel}": isi Tebal (mm) agar stok partai bisa dikurangi.`,
         );
         continue;
       }
@@ -314,16 +365,11 @@ export function SaleForm({
       );
       if (!stockRow) {
         allocationProblems.push(
-          `Item "${item.itemName || "tanpa nama"}": partai yang dipilih tidak punya stok untuk ketebalan ${mm} mm.`,
+          `Item "${itemLabel}": partai yang dipilih tidak punya stok untuk ketebalan ${mm} mm.`,
         );
         continue;
       }
-      const need = Number(item.qty || 0);
-      if (need > stockRow.qtyAvailableEffective + 1e-9) {
-        allocationProblems.push(
-          `Item "${item.itemName || "tanpa nama"}": stok tidak cukup (tersisa ${stockRow.qtyAvailableEffective.toLocaleString("id-ID")}, butuh ${need.toLocaleString("id-ID")}).`,
-        );
-      }
+      // Stok partai boleh minus setelah penjualan; tidak memblok submit di sini.
     }
 
     if (allocationProblems.length > 0) {
@@ -340,9 +386,15 @@ export function SaleForm({
         if (item.id !== itemId || !customerId) {
           return item;
         }
+        const itemDescription = buildVeneerItemDescription({
+          thickness: item.thickness,
+          width: item.width,
+          length: item.length,
+          mutu: item.category,
+        });
 
         const itemKey = buildSaleItemKey({
-          itemName: item.itemName,
+          itemName: itemDescription,
           category: item.category || undefined,
           thickness: item.thickness || undefined,
           width: item.width || undefined,
@@ -423,9 +475,15 @@ export function SaleForm({
           const hasPartaiNew = item.sources.some((s) => !s.isLegacy && s.woodPurchaseId);
           const qtyMismatch =
             hasLegacySources && Math.abs(Number(item.qty || 0) - legacyQtySum) > 1e-6;
+          const itemDescription = buildVeneerItemDescription({
+            thickness: item.thickness,
+            width: item.width,
+            length: item.length,
+            mutu: item.category,
+          });
 
           const itemKey = buildSaleItemKey({
-            itemName: item.itemName,
+            itemName: itemDescription,
             category: item.category || undefined,
             thickness: item.thickness || undefined,
             width: item.width || undefined,
@@ -438,52 +496,42 @@ export function SaleForm({
             <div key={item.id} className="space-y-3 rounded-lg border p-3">
               <div className="grid gap-3 md:grid-cols-12">
                 <div className="md:col-span-4">
-                  <Label>Nama Item *</Label>
-                  <Input
-                    value={item.itemName}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      updateItem(item.id, "itemName", value);
-                      void requestSuggestions(item.id, value);
-                    }}
-                    onBlur={() => tryAutoFillExactPrice(item.id)}
-                    onFocus={() => {
-                      if ((rowSuggestions[item.id]?.length ?? 0) === 0) {
-                        void requestSuggestions(item.id, item.itemName);
-                      }
-                    }}
-                    placeholder="Kayu campuran partai"
-                    required
-                  />
-                  {!!rowSuggestions[item.id]?.length && customerId ? (
-                    <div className="mt-2 space-y-1 rounded-md border bg-card p-2">
-                      {rowSuggestions[item.id].map((suggestion) => (
-                        <button
-                          key={`${item.id}-${suggestion.itemKey}`}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-muted"
-                          onClick={() => applySuggestion(item.id, suggestion)}
-                        >
-                          <span>
-                            {suggestion.itemName}
-                            {suggestion.unit ? ` (${suggestion.unit})` : ""}
-                          </span>
-                          <span className="text-muted-foreground">
-                            Rp {Number(suggestion.latestPrice).toLocaleString("id-ID")}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  <Label>Template Barang</Label>
+                  <select
+                    className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    value={item.templateId ?? ""}
+                    onChange={(event) => applyTemplateToItem(item.id, event.target.value)}
+                  >
+                    <option value="">Pilih template atau isi spesifikasi manual</option>
+                    {veneerTemplates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.templateName}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Template akan terbentuk otomatis dari data transaksi yang disimpan.
+                  </p>
+                </div>
+                <div className="md:col-span-4">
+                  <Label>Deskripsi Item (otomatis)</Label>
+                  <Input value={itemDescription} disabled />
                 </div>
                 <div className="md:col-span-2">
                   <Label>Qty *</Label>
                   <Input
-                    type="number"
-                    min={0.01}
-                    step="0.01"
                     value={item.qty}
-                    onChange={(event) => updateItem(item.id, "qty", event.target.value)}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    onChange={(event) =>
+                      updateItem(item.id, "qty", sanitizeSaleQtyTyping(event.target.value))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === ",") {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="Mis. 50.35 (titik)"
                     required
                   />
                 </div>
@@ -497,7 +545,7 @@ export function SaleForm({
                     onChange={(event) => updateItem(item.id, "price", event.target.value)}
                     required
                   />
-                  {priceHint && item.itemName.trim() ? (
+                  {priceHint ? (
                     <p className="mt-1 text-xs text-muted-foreground">
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
                         Harga terakhir customer ini
@@ -542,25 +590,36 @@ export function SaleForm({
                   </p>
                   <div className="grid gap-3 md:grid-cols-10">
                     <div className="md:col-span-2">
-                      <Label>Kategori</Label>
+                      <Label>Mutu</Label>
                       <Input
                         value={item.category}
                         onChange={(event) =>
                           updateItem(item.id, "category", event.target.value)
                         }
                         onBlur={() => tryAutoFillExactPrice(item.id)}
-                        placeholder="Opsional"
+                        placeholder="A/B/C (opsional)"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Label>Tebal</Label>
+                      <Label>Tebal (mm)</Label>
                       <Input
                         value={item.thickness}
+                        inputMode="decimal"
+                        autoComplete="off"
                         onChange={(event) =>
-                          updateItem(item.id, "thickness", event.target.value)
+                          updateItem(
+                            item.id,
+                            "thickness",
+                            sanitizeThicknessMmTyping(event.target.value),
+                          )
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === ",") {
+                            e.preventDefault();
+                          }
+                        }}
                         onBlur={() => tryAutoFillExactPrice(item.id)}
-                        placeholder="Opsional"
+                        placeholder="Mis. 0.6 (titik)"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -589,7 +648,7 @@ export function SaleForm({
                         value={item.unit}
                         onChange={(event) => updateItem(item.id, "unit", event.target.value)}
                         onBlur={() => tryAutoFillExactPrice(item.id)}
-                        placeholder="m³, btg, …"
+                        placeholder="m2"
                       />
                     </div>
                   </div>
@@ -743,7 +802,8 @@ export function SaleForm({
               <div className="text-xs text-muted-foreground">
                 {hasPartaiNew && !hasLegacySources ? (
                   <p>
-                    Stok partai berkurang sebesar qty item untuk ketebalan sesuai kolom Tebal.
+                    Stok partai berkurang sebesar qty item untuk ketebalan sesuai kolom Tebal. Sisa stok
+                    boleh ditampilkan minus jika qty melebihi stok tercatat (penjualan diperbolehkan).
                   </p>
                 ) : null}
                 {hasLegacySources && sourceVolumeTotal > 0 ? (

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 /** Ketebalan standar veneer per partai (mm) — otomatis dibuat dengan qty 0. */
 export const DEFAULT_PARTAI_THICKNESS_MM = ["0.6", "1.2"] as const;
 
+/** Satuan default untuk stok veneer per ketebalan (qty mengacu ke unit ini). */
+export const DEFAULT_THICKNESS_STOCK_UNIT = "m2";
+
 async function ensureDefaultThicknessStockRows(
   tx: Prisma.TransactionClient,
   purchaseId: string,
@@ -14,7 +17,7 @@ async function ensureDefaultThicknessStockRows(
       purchaseId,
       thicknessMm,
       qtyAvailable: "0",
-      unit: "lembar",
+      unit: DEFAULT_THICKNESS_STOCK_UNIT,
     })),
     skipDuplicates: true,
   });
@@ -46,6 +49,11 @@ export type CreateWoodPurchaseInput = {
 };
 
 export type UpdateWoodPurchaseInput = CreateWoodPurchaseInput;
+
+/** Σ WoodPurchaseItem.volume per partai — satu baris dihitung sekali; tanpa detail = 0. */
+export function sumWoodPurchaseDetailVolume(items: Array<{ volume: unknown }>): number {
+  return items.reduce((sum, row) => sum + Number(row.volume ?? 0), 0);
+}
 
 export async function getWoodPurchases() {
   return prisma.woodPurchase.findMany({
@@ -156,12 +164,14 @@ export async function createThicknessStockRow(input: {
     throw new Error("Qty awal tidak boleh negatif.");
   }
 
+  const unit = input.unit?.trim() || DEFAULT_THICKNESS_STOCK_UNIT;
+
   return prisma.woodPurchaseThicknessStock.create({
     data: {
       purchaseId: input.purchaseId,
       thicknessMm: input.thicknessMm.toString(),
       qtyAvailable: input.qtyInitial.toString(),
-      unit: input.unit?.trim() || null,
+      unit,
     },
   });
 }

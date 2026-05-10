@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThicknessMmInput } from "@/components/thickness-mm-input";
 import {
   Table,
   TableBody,
@@ -17,7 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getWoodPurchaseById } from "@/lib/services/wood-purchase-service";
+import {
+  getWoodPurchaseById,
+  sumWoodPurchaseDetailVolume,
+} from "@/lib/services/wood-purchase-service";
 
 type PurchaseDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -88,6 +92,10 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
           <p className="text-lg font-semibold">
             Grand Total: Rp {Number(purchase.grandTotal).toLocaleString("id-ID")}
           </p>
+          <p>
+            <span className="font-medium">Total volume pembelian (Σ baris detail):</span>{" "}
+            {sumWoodPurchaseDetailVolume(purchase.items).toLocaleString("id-ID")}
+          </p>
         </CardContent>
       </Card>
 
@@ -97,23 +105,17 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Setiap partai otomatis punya baris <strong>0,6 mm</strong> dan <strong>1,2 mm</strong>{" "}
+            Setiap partai otomatis punya baris <strong>0.6 mm</strong> dan <strong>1.2 mm</strong>{" "}
             dengan qty awal <strong>0</strong> (bisa Anda sesuaikan). Form di bawah untuk menambah
-            ketebalan lain bila perlu. Kombinasi ini yang muncul saat penjualan.
+            ketebalan lain bila perlu. Kombinasi ini yang muncul saat penjualan. Untuk desimal gunakan{" "}
+            <strong>titik</strong> (contoh: <strong>0.6</strong>), bukan koma.
           </p>
           <form action={addThicknessStockAction} className="grid gap-3 md:grid-cols-5 md:items-end">
             <input type="hidden" name="purchaseId" value={purchase.id} />
             <div className="space-y-2">
               <Label htmlFor="thicknessMm">Ketebalan (mm)</Label>
-              <Input
-                id="thicknessMm"
-                name="thicknessMm"
-                type="number"
-                step="0.001"
-                min={0.001}
-                required
-                placeholder="0.6"
-              />
+              <ThicknessMmInput id="thicknessMm" name="thicknessMm" required placeholder="0.6" />
+              <p className="text-xs text-muted-foreground">Titik untuk desimal; koma tidak dipakai.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="qtyInitial">Qty awal</Label>
@@ -128,8 +130,8 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
               />
             </div>
             <div className="space-y-2 md:col-span-1">
-              <Label htmlFor="unit">Satuan (opsional)</Label>
-              <Input id="unit" name="unit" placeholder="lembar" />
+              <Label htmlFor="unit">Satuan</Label>
+              <Input id="unit" name="unit" placeholder="m2" defaultValue="m2" />
             </div>
             <div className="md:col-span-1">
               <Button type="submit" className="w-full md:w-auto">

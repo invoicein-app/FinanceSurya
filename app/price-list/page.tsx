@@ -93,7 +93,7 @@ export default async function PriceListPage({ searchParams }: PriceListPageProps
               <thead>
                 <tr className="border-b text-left">
                   <th className="py-2 pr-3 font-medium">Nama item</th>
-                  <th className="py-2 pr-3 font-medium">Kategori</th>
+                  <th className="py-2 pr-3 font-medium">Mutu</th>
                   <th className="py-2 pr-3 font-medium">Tebal</th>
                   <th className="py-2 pr-3 font-medium">Lebar</th>
                   <th className="py-2 pr-3 font-medium">Panjang</th>

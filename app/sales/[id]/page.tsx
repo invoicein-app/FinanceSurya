@@ -75,7 +75,7 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nama Barang</TableHead>
+                <TableHead>Deskripsi Item</TableHead>
                 <TableHead>Qty</TableHead>
                 <TableHead>Harga</TableHead>
                 <TableHead>Subtotal</TableHead>
