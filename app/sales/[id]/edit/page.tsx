@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SaleForm } from "@/components/sales/sale-form";
 import { getCustomers } from "@/lib/services/customer-service";
-import { buildVeneerSpecKey } from "@/lib/sales/veneer-template-spec";
 import { getSaleById } from "@/lib/services/sale-service";
-import { getActiveVeneerTemplates } from "@/lib/services/veneer-template-service";
 import { getThicknessStockOptionsForSaleForm } from "@/lib/services/wood-purchase-service";
+
+export const dynamic = "force-dynamic";
 
 type EditSalePageProps = {
   params: Promise<{ id: string }>;
@@ -17,11 +17,10 @@ type EditSalePageProps = {
 
 export default async function EditSalePage({ params }: EditSalePageProps) {
   const { id } = await params;
-  const [sale, customers, thicknessStockOptions, veneerTemplates] = await Promise.all([
+  const [sale, customers, thicknessStockOptions] = await Promise.all([
     getSaleById(id),
     getCustomers(),
     getThicknessStockOptionsForSaleForm({ adjustmentsFromSaleId: id }),
-    getActiveVeneerTemplates(),
   ]);
 
   if (!sale) {
@@ -62,7 +61,6 @@ export default async function EditSalePage({ params }: EditSalePageProps) {
             <SaleForm
               customers={customers}
               thicknessStockOptions={thicknessStockOptions}
-              veneerTemplates={veneerTemplates}
               action={updateAction}
               submitLabel="Simpan Perubahan"
               initialValues={{
@@ -70,20 +68,8 @@ export default async function EditSalePage({ params }: EditSalePageProps) {
                 customerId: sale.customerId ?? "",
                 note: sale.note ?? "",
                 items: sale.saleItems.map((item) => ({
-                  // Match current item specs to a template (if any) to pre-select.
-                  templateId:
-                    veneerTemplates.find(
-                      (tpl) =>
-                        tpl.specKey ===
-                        buildVeneerSpecKey({
-                          thickness: item.thickness,
-                          width: item.width,
-                          length: item.length,
-                          grade: item.category,
-                          unit: item.unit,
-                        }),
-                    )?.id ?? "",
                   id: item.id,
+                  templateId: "",
                   itemName: item.itemName,
                   category: item.category ?? "",
                   thickness: item.thickness ?? "",

@@ -19,21 +19,36 @@ const envSchema = z.object({
   PRISMA_DATABASE_USE_DIRECT: z.string().optional(),
 });
 
-const parsedEnv = envSchema.safeParse(process.env);
+export type Env = z.infer<typeof envSchema>;
 
-if (!parsedEnv.success) {
-  const readableErrors = parsedEnv.error.issues
-    .map((issue) => `- ${issue.message}`)
-    .join("\n");
+let cachedEnv: Env | undefined;
 
-  throw new Error(
-    `Environment variable belum valid.\n${readableErrors}\n\nSalin .env.example ke .env.local lalu isi semua value yang dibutuhkan.`,
-  );
+/** Lazy parse — `next build` Vercel memuat modul tanpa env sampai halaman benar-benar dipanggil. */
+function loadEnv(): Env {
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const readableErrors = parsed.error.issues.map((issue) => `- ${issue.message}`).join("\n");
+
+    throw new Error(
+      `Environment variable belum valid.\n${readableErrors}\n\nSalin .env.example ke .env.local lalu isi semua value yang dibutuhkan.\nDi Vercel: Project Settings → Environment Variables.`,
+    );
+  }
+  return parsed.data;
 }
 
-export const env = parsedEnv.data;
+export function getEnv(): Env {
+  cachedEnv ??= loadEnv();
+  return cachedEnv;
+}
+
+/** Proxy supaya import `@/lib/env` tidak mem-parse env sampai property pertama diakses. */
+export const env = new Proxy({} as Env, {
+  get(_target, prop: keyof Env) {
+    return getEnv()[prop];
+  },
+});
 
 export function prismaUsesDirectDatabaseUrl(): boolean {
-  const v = env.PRISMA_DATABASE_USE_DIRECT?.trim().toLowerCase();
+  const v = getEnv().PRISMA_DATABASE_USE_DIRECT?.trim().toLowerCase();
   return v === "true" || v === "1";
 }

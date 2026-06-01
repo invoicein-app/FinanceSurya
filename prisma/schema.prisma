@@ -28,8 +28,9 @@ model Product {
 
 model VeneerTemplate {
   id           String   @id @default(cuid())
+  customerId   String
   templateName String
-  specKey      String   @unique
+  specKey      String
   thickness    String?
   width        String?
   length       String?
@@ -38,9 +39,12 @@ model VeneerTemplate {
   defaultPrice Decimal? @db.Decimal(14, 2)
   isActive     Boolean  @default(true)
   source       String   @default("auto")
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@unique([customerId, specKey])
+  @@index([customerId])
   @@index([isActive])
 }
 
@@ -49,6 +53,7 @@ model Customer {
   name               String              @unique
   sales              Sale[]
   customerPriceLists CustomerPriceList[]
+  veneerTemplates    VeneerTemplate[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }

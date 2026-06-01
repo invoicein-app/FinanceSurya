@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useFormSubmitOnce } from "@/lib/hooks/use-form-submit-once";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -110,8 +111,10 @@ export function PurchaseForm({
     );
   };
 
+  const { isSubmitting, submittingLabel, handleSubmit } = useFormSubmitOnce({ action });
+
   return (
-    <form action={action} className="space-y-6">
+    <form className="space-y-6" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="vendorId">Vendor</Label>
@@ -320,7 +323,9 @@ export function PurchaseForm({
         <span className="font-medium">{totalVolumeItem.toLocaleString("id-ID")}</span>
       </div>
 
-      <Button type="submit">{submitLabel}</Button>
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? submittingLabel : submitLabel}
+      </Button>
     </form>
   );
 }

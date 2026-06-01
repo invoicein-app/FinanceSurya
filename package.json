@@ -11,7 +11,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:deploy:direct": "node scripts/prisma-migrate-with-direct-url.cjs migrate deploy",
+    "prisma:deploy": "npm run prisma:migrate:deploy:direct && npm run backfill:templates",
     "prisma:seed": "prisma db seed",
+    "backfill:templates": "tsx scripts/backfill-veneer-templates-from-price-list.ts",
     "check:db-url": "node scripts/check-env-urls.cjs"
   },
   "dependencies": {

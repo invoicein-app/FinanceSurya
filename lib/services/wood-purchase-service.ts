@@ -176,6 +176,54 @@ export async function createThicknessStockRow(input: {
   });
 }
 
+export async function deleteWoodPurchase(id: string) {
+  const purchase = await prisma.woodPurchase.findUnique({
+    where: { id },
+    include: {
+      items: { select: { id: true } },
+      thicknessStocks: { select: { id: true } },
+    },
+  });
+
+  if (!purchase) {
+    throw new Error("Data partai tidak ditemukan.");
+  }
+
+  const itemIds = purchase.items.map((item) => item.id);
+  const stockIds = purchase.thicknessStocks.map((stock) => stock.id);
+  const saleLinkConditions: Prisma.SaleItemSourceWhereInput[] = [];
+
+  if (itemIds.length > 0) {
+    saleLinkConditions.push({ purchaseItemId: { in: itemIds } });
+  }
+  if (stockIds.length > 0) {
+    saleLinkConditions.push({ thicknessStockId: { in: stockIds } });
+  }
+
+  if (saleLinkConditions.length > 0) {
+    const linkedSaleSource = await prisma.saleItemSource.findFirst({
+      where: { OR: saleLinkConditions },
+      select: { id: true },
+    });
+
+    if (linkedSaleSource) {
+      throw new Error(
+        "Tidak bisa menghapus partai ini karena masih dipakai di transaksi penjualan. Hapus atau ubah alokasi penjualan terkait terlebih dahulu.",
+      );
+    }
+  }
+
+  try {
+    await prisma.woodPurchase.delete({ where: { id } });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "P2003") {
+      throw new Error("Tidak bisa menghapus partai karena masih direferensikan data lain.");
+    }
+    throw error;
+  }
+}
+
 export async function deleteThicknessStockRow(id: string) {
   const row = await prisma.woodPurchaseThicknessStock.findUnique({
     where: { id },

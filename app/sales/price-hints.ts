@@ -5,6 +5,7 @@ import {
   getCustomerItemSuggestions,
   getCustomerPriceListHints,
 } from "@/lib/services/customer-price-list-service";
+import { getActiveVeneerTemplatesForCustomer } from "@/lib/services/veneer-template-service";
 
 export async function fetchCustomerPriceListHintsAction(customerId: string) {
   if (!customerId) {
@@ -37,4 +38,11 @@ export async function fetchExactCustomerPriceAction(input: {
     return null;
   }
   return findCustomerLatestPriceByExactItemKey(input);
+}
+
+export async function fetchCustomerVeneerTemplatesAction(customerId: string) {
+  if (!customerId) {
+    return [];
+  }
+  return getActiveVeneerTemplatesForCustomer(customerId);
 }

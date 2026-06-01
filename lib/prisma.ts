@@ -65,12 +65,26 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter: createPgAdapter(),
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({
+      adapter: createPgAdapter(),
+    });
+  }
+  return globalForPrisma.prisma;
 }
+
+/**
+ * Proxy — baru bikin adapter / parse env saat ada akses pertama ke client,
+ * supaya `next build` di Vercel tidak gagal di tahap collect page data bila modul ikut termuat.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop: PropertyKey) {
+    const inst = getPrismaClient();
+    const value = Reflect.get(inst as unknown as object, prop, inst as unknown as object);
+    if (typeof value === "function") {
+      return (value as (...args: unknown[]) => unknown).bind(inst);
+    }
+    return value;
+  },
+});

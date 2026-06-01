@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-import { fetchCustomerPriceListHintsAction } from "@/app/sales/price-hints";
+import {
+  fetchCustomerPriceListHintsAction,
+  fetchCustomerVeneerTemplatesAction,
+} from "@/app/sales/price-hints";
 import { buildVeneerItemDescription } from "@/lib/sales/item-description";
 import {
   CustomerCombobox,
@@ -12,7 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Textarea } from "@/components/ui/textarea";
+import { getTodayDateValue } from "@/lib/date-input";
+import { useFormSubmitOnce } from "@/lib/hooks/use-form-submit-once";
 import { buildSaleItemKey } from "@/lib/item-key";
 import {
   parseThicknessMmForStock,
@@ -64,7 +70,6 @@ type SaleFormValues = {
 type SaleFormProps = {
   customers: CustomerOption[];
   thicknessStockOptions: ThicknessStockOption[];
-  veneerTemplates: VeneerTemplateRow[];
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   initialValues?: SaleFormValues;
@@ -102,12 +107,13 @@ const defaultRow = (): ItemRow => ({
 export function SaleForm({
   customers,
   thicknessStockOptions,
-  veneerTemplates,
   action,
   submitLabel,
   initialValues,
 }: SaleFormProps) {
-  const [saleDate, setSaleDate] = useState(initialValues?.saleDate ?? "");
+  const [saleDate, setSaleDate] = useState(
+    initialValues?.saleDate ?? getTodayDateValue(),
+  );
   const [customerId, setCustomerId] = useState(initialValues?.customerId ?? "");
   const [customerFieldError, setCustomerFieldError] = useState<string | undefined>();
   const [saleNote, setSaleNote] = useState(initialValues?.note ?? "");
@@ -117,7 +123,11 @@ export function SaleForm({
   const [priceListHints, setPriceListHints] = useState<
     Record<string, { latestPrice: string }>
   >({});
+  const [customerTemplates, setCustomerTemplates] = useState<VeneerTemplateRow[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [allocationError, setAllocationError] = useState<string | undefined>();
+  const editTemplateMatchedRef = useRef(false);
+  const initialCustomerIdRef = useRef(initialValues?.customerId ?? "");
 
   const partaiOptions = useMemo(() => {
     const map = new Map<string, { id: string; batchCode: string }>();
@@ -131,11 +141,32 @@ export function SaleForm({
 
   const templateById = useMemo(() => {
     const map = new Map<string, VeneerTemplateRow>();
-    for (const tpl of veneerTemplates) {
+    for (const tpl of customerTemplates) {
       map.set(tpl.id, tpl);
     }
     return map;
-  }, [veneerTemplates]);
+  }, [customerTemplates]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!customerId) {
+      setCustomerTemplates([]);
+      setTemplatesLoading(false);
+      return;
+    }
+
+    setTemplatesLoading(true);
+    void fetchCustomerVeneerTemplatesAction(customerId).then((data) => {
+      if (!cancelled) {
+        setCustomerTemplates(data);
+        setTemplatesLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,6 +182,54 @@ export function SaleForm({
       cancelled = true;
     };
   }, [customerId]);
+
+  useEffect(() => {
+    if (!customerId || customerTemplates.length === 0) {
+      return;
+    }
+
+    const validIds = new Set(customerTemplates.map((tpl) => tpl.id));
+    setItems((current) =>
+      current.map((item) => {
+        if (item.templateId && validIds.has(item.templateId)) {
+          return item;
+        }
+        if (item.templateId && !validIds.has(item.templateId)) {
+          return { ...item, templateId: "" };
+        }
+        return item;
+      }),
+    );
+  }, [customerId, customerTemplates]);
+
+  useEffect(() => {
+    if (
+      !customerId ||
+      customerTemplates.length === 0 ||
+      editTemplateMatchedRef.current ||
+      customerId !== initialCustomerIdRef.current
+    ) {
+      return;
+    }
+
+    setItems((current) =>
+      current.map((item) => {
+        if (item.templateId) {
+          return item;
+        }
+        const specKey = buildVeneerSpecKey({
+          thickness: item.thickness,
+          width: item.width,
+          length: item.length,
+          grade: item.category,
+          unit: item.unit,
+        });
+        const matched = customerTemplates.find((tpl) => tpl.specKey === specKey);
+        return matched ? { ...item, templateId: matched.id } : item;
+      }),
+    );
+    editTemplateMatchedRef.current = true;
+  }, [customerId, customerTemplates]);
 
   const hintsForDisplay = useMemo(
     () => (customerId ? priceListHints : {}),
@@ -253,8 +332,19 @@ export function SaleForm({
   };
 
   const applyTemplateToItem = (itemId: string, templateId: string) => {
+    if (!customerId) {
+      return;
+    }
+
+    if (!templateId) {
+      setItems((current) =>
+        current.map((item) => (item.id === itemId ? { ...item, templateId: "" } : item)),
+      );
+      return;
+    }
+
     const template = templateById.get(templateId);
-    if (!template) {
+    if (!template || template.customerId !== customerId) {
       setItems((current) =>
         current.map((item) => (item.id === itemId ? { ...item, templateId: "" } : item)),
       );
@@ -329,56 +419,73 @@ export function SaleForm({
     setCustomerFieldError(undefined);
     setAllocationError(undefined);
     setPriceListHints({});
+    setCustomerTemplates([]);
+    editTemplateMatchedRef.current = false;
+    setItems((current) =>
+      current.map((item) => ({
+        ...item,
+        templateId: "",
+      })),
+    );
   };
 
-  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
-    if (!customerId) {
-      event.preventDefault();
-      setCustomerFieldError("Pilih customer terlebih dahulu.");
-      return;
-    }
+  const validateBeforeSubmit = useCallback(
+    (_event: FormEvent<HTMLFormElement>) => {
+      if (!customerId) {
+        setCustomerFieldError("Pilih customer terlebih dahulu.");
+        return false;
+      }
 
-    const allocationProblems: string[] = [];
-    for (const item of items) {
-      const itemLabel = buildVeneerItemDescription({
-        thickness: item.thickness,
-        width: item.width,
-        length: item.length,
-        mutu: item.category,
-      });
-      if (item.sources.some((s) => s.isLegacy)) {
-        continue;
-      }
-      const partaiId = item.sources.find((s) => !s.isLegacy)?.woodPurchaseId;
-      if (!partaiId) {
-        continue;
-      }
-      const mm = parseThicknessMmForStock(item.thickness);
-      if (!mm) {
-        allocationProblems.push(
-          `Item "${itemLabel}": isi Tebal (mm) agar stok partai bisa dikurangi.`,
+      const allocationProblems: string[] = [];
+      for (const item of items) {
+        const itemLabel = buildVeneerItemDescription({
+          thickness: item.thickness,
+          width: item.width,
+          length: item.length,
+          mutu: item.category,
+        });
+        if (item.sources.some((s) => s.isLegacy)) {
+          continue;
+        }
+        const partaiId = item.sources.find((s) => !s.isLegacy)?.woodPurchaseId;
+        if (!partaiId) {
+          continue;
+        }
+        const mm = parseThicknessMmForStock(item.thickness);
+        if (!mm) {
+          allocationProblems.push(
+            `Item "${itemLabel}": isi Tebal (mm) agar stok partai bisa dikurangi.`,
+          );
+          continue;
+        }
+        const stockRow = thicknessStockOptions.find(
+          (o) => o.purchaseId === partaiId && thicknessMmMatches(o.thicknessMm, mm),
         );
-        continue;
+        if (!stockRow) {
+          allocationProblems.push(
+            `Item "${itemLabel}": partai yang dipilih tidak punya stok untuk ketebalan ${mm} mm.`,
+          );
+          continue;
+        }
+        // Stok partai boleh minus setelah penjualan; tidak memblok submit di sini.
       }
-      const stockRow = thicknessStockOptions.find(
-        (o) => o.purchaseId === partaiId && thicknessMmMatches(o.thicknessMm, mm),
-      );
-      if (!stockRow) {
-        allocationProblems.push(
-          `Item "${itemLabel}": partai yang dipilih tidak punya stok untuk ketebalan ${mm} mm.`,
-        );
-        continue;
-      }
-      // Stok partai boleh minus setelah penjualan; tidak memblok submit di sini.
-    }
 
-    if (allocationProblems.length > 0) {
-      event.preventDefault();
-      setAllocationError(allocationProblems.join(" "));
-      return;
-    }
-    setAllocationError(undefined);
-  };
+      if (allocationProblems.length > 0) {
+        setAllocationError(allocationProblems.join(" "));
+        return false;
+      }
+
+      setAllocationError(undefined);
+      return true;
+    },
+    [customerId, items, thicknessStockOptions],
+  );
+
+  const { isSubmitting, submittingLabel, handleSubmit: handleFormSubmit } =
+    useFormSubmitOnce({
+      action,
+      beforeSubmit: validateBeforeSubmit,
+    });
 
   const tryAutoFillExactPrice = (itemId: string) => {
     setItems((current) =>
@@ -417,7 +524,7 @@ export function SaleForm({
   };
 
   return (
-    <form action={action} className="space-y-6" onSubmit={handleFormSubmit}>
+    <form className="space-y-6" onSubmit={handleFormSubmit}>
       <input type="hidden" name="itemsPayload" value={serializedItemsPayload} />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -498,19 +605,32 @@ export function SaleForm({
                 <div className="md:col-span-4">
                   <Label>Template Barang</Label>
                   <select
-                    className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                     value={item.templateId ?? ""}
+                    disabled={!customerId || templatesLoading}
                     onChange={(event) => applyTemplateToItem(item.id, event.target.value)}
                   >
-                    <option value="">Pilih template atau isi spesifikasi manual</option>
-                    {veneerTemplates.map((tpl) => (
-                      <option key={tpl.id} value={tpl.id}>
-                        {tpl.templateName}
-                      </option>
-                    ))}
+                    {!customerId ? (
+                      <option value="">Pilih customer terlebih dahulu</option>
+                    ) : templatesLoading ? (
+                      <option value="">Memuat template...</option>
+                    ) : customerTemplates.length === 0 ? (
+                      <option value="">Belum ada template untuk customer ini</option>
+                    ) : (
+                      <>
+                        <option value="">Pilih template atau isi spesifikasi manual</option>
+                        {customerTemplates.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.templateName}
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Template akan terbentuk otomatis dari data transaksi yang disimpan.
+                    {customerId
+                      ? "Template per customer — dari tabel VeneerTemplate (tersinkron dari histori harga)."
+                      : "Pilih customer untuk melihat template miliknya."}
                   </p>
                 </div>
                 <div className="md:col-span-4">
@@ -536,13 +656,15 @@ export function SaleForm({
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Harga *</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
+                  <Label htmlFor={`sale-finance-price-${item.id}`}>
+                    Harga Penjualan Finance *
+                  </Label>
+                  <RupiahInput
+                    id={`sale-finance-price-${item.id}`}
                     value={item.price}
-                    onChange={(event) => updateItem(item.id, "price", event.target.value)}
+                    onValueChange={(numericString) =>
+                      updateItem(item.id, "price", numericString)
+                    }
                     required
                   />
                   {priceHint ? (
@@ -839,7 +961,9 @@ export function SaleForm({
         <p className="text-sm text-destructive">{allocationError}</p>
       ) : null}
 
-      <Button type="submit">{submitLabel}</Button>
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? submittingLabel : submitLabel}
+      </Button>
     </form>
   );
 }

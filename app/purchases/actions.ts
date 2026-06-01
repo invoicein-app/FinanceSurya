@@ -9,6 +9,7 @@ import {
   createThicknessStockRow,
   createWoodPurchase,
   deleteThicknessStockRow,
+  deleteWoodPurchase,
   updateWoodPurchase,
   type WoodPurchaseItemInput,
 } from "@/lib/services/wood-purchase-service";
@@ -31,6 +32,8 @@ export async function createPurchaseAction(formData: FormData) {
   await createWoodPurchase(payload);
   revalidatePath("/purchases");
   revalidatePath("/stocks");
+  revalidatePath("/sales/new");
+  revalidatePath("/sales");
   redirect("/purchases");
 }
 
@@ -41,6 +44,8 @@ export async function updatePurchaseAction(id: string, formData: FormData) {
   revalidatePath(`/purchases/${id}`);
   revalidatePath(`/purchases/${id}/edit`);
   revalidatePath("/stocks");
+  revalidatePath("/sales/new");
+  revalidatePath("/sales");
   redirect("/purchases");
 }
 
@@ -153,6 +158,22 @@ export async function addThicknessStockAction(formData: FormData) {
   revalidatePath("/stocks");
   revalidatePath("/sales/new");
   revalidatePath("/sales");
+}
+
+export async function deletePurchaseAction(id: string) {
+  const trimmedId = id.trim();
+  if (!trimmedId) {
+    throw new Error("ID partai tidak valid.");
+  }
+
+  await deleteWoodPurchase(trimmedId);
+
+  revalidatePath("/purchases");
+  revalidatePath("/stocks");
+  revalidatePath("/sales/new");
+  revalidatePath("/sales");
+
+  return { success: true as const };
 }
 
 export async function deleteThicknessStockAction(formData: FormData) {

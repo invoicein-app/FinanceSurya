@@ -134,7 +134,11 @@ export async function createSale(input: CreateSaleInput) {
     unit: item.unit,
     price: item.price,
   }));
-  const veneerOps = await collectVeneerTemplateSaleSqlOps(prisma, veneerLines);
+  const veneerOps = await collectVeneerTemplateSaleSqlOps(
+    prisma,
+    customer?.id ?? input.customerId ?? "",
+    veneerLines,
+  );
 
   // Header penjualan terpisah (perlu sale.id). Batch `$transaction([...])` + nested writes ke pooler
   // transaksi Supabase sering memicu Postgres 08P01 — jalankan mutasi berurutan (satu query per round-trip).
@@ -305,7 +309,11 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
     unit: item.unit,
     price: item.price,
   }));
-  const veneerOps = await collectVeneerTemplateSaleSqlOps(prisma, veneerLines);
+  const veneerOps = await collectVeneerTemplateSaleSqlOps(
+    prisma,
+    customer?.id ?? input.customerId ?? "",
+    veneerLines,
+  );
 
   for (const [stockId, qty] of rollbackThick) {
     await prisma.woodPurchaseThicknessStock.update({
