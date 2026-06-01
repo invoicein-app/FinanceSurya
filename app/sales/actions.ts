@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { createSale, updateSale, type CreateSaleItemInput } from "@/lib/services/sale-service";
+import {
+  createSale,
+  deleteSale,
+  updateSale,
+  type CreateSaleItemInput,
+} from "@/lib/services/sale-service";
 
 const saleSchema = z.object({
   saleDate: z.string().min(1, "Tanggal penjualan wajib diisi"),
@@ -22,6 +27,23 @@ export async function createSaleAction(formData: FormData) {
   revalidatePath("/stocks");
 
   redirect("/sales");
+}
+
+export async function deleteSaleAction(id: string) {
+  const trimmedId = id.trim();
+  if (!trimmedId) {
+    throw new Error("ID penjualan tidak valid.");
+  }
+
+  await deleteSale(trimmedId);
+
+  revalidatePath("/sales");
+  revalidatePath("/price-list");
+  revalidatePath("/");
+  revalidatePath("/stocks");
+  revalidatePath("/sales/new");
+
+  return { success: true as const };
 }
 
 export async function updateSaleAction(id: string, formData: FormData) {

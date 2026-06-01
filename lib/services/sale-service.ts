@@ -75,6 +75,64 @@ export async function getSales() {
   });
 }
 
+export async function deleteSale(id: string) {
+  const trimmedId = id.trim();
+  if (!trimmedId) {
+    throw new Error("ID penjualan tidak valid.");
+  }
+
+  const sale = await prisma.sale.findUnique({
+    where: { id: trimmedId },
+    include: {
+      saleItems: {
+        include: { sources: true },
+      },
+    },
+  });
+
+  if (!sale) {
+    throw new Error("Transaksi penjualan tidak ditemukan.");
+  }
+
+  const rollbackThick = new Map<string, number>();
+  const rollbackLegacy = new Map<string, { qty: number; volume: number }>();
+  for (const saleItem of sale.saleItems) {
+    for (const src of saleItem.sources) {
+      if (src.thicknessStockId) {
+        rollbackThick.set(
+          src.thicknessStockId,
+          (rollbackThick.get(src.thicknessStockId) ?? 0) + Number(src.qtyTaken),
+        );
+      }
+      if (src.purchaseItemId) {
+        const cur = rollbackLegacy.get(src.purchaseItemId) ?? { qty: 0, volume: 0 };
+        rollbackLegacy.set(src.purchaseItemId, {
+          qty: cur.qty + Number(src.qtyTaken),
+          volume: cur.volume + Number(src.volumeTaken),
+        });
+      }
+    }
+  }
+
+  for (const [stockId, qty] of rollbackThick) {
+    await prisma.woodPurchaseThicknessStock.update({
+      where: { id: stockId },
+      data: { qtyAvailable: { increment: qty.toString() } },
+    });
+  }
+  for (const [purchaseItemId, { qty, volume }] of rollbackLegacy) {
+    await prisma.woodPurchaseItem.update({
+      where: { id: purchaseItemId },
+      data: {
+        remainingQty: { increment: qty.toString() },
+        remainingVolume: { increment: volume.toString() },
+      },
+    });
+  }
+
+  await prisma.sale.delete({ where: { id: trimmedId } });
+}
+
 export async function getSaleById(id: string) {
   return prisma.sale.findUnique({
     where: { id },

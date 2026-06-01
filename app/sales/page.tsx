@@ -1,19 +1,22 @@
 import Link from "next/link";
 
+import { SalesTable } from "@/components/sales/sales-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { getSales } from "@/lib/services/sale-service";
 
 export default async function SalesPage() {
   const sales = await getSales();
+
+  const rows = sales.map((sale) => ({
+    id: sale.id,
+    saleDate: sale.saleDate.toISOString(),
+    customerLabel: sale.customer?.name ?? sale.customerName ?? "-",
+    itemCount: sale.saleItems.length,
+    sourceCount: sale.saleItems.reduce((sum, item) => sum + item.sources.length, 0),
+    firstItemName: sale.saleItems[0]?.itemName || "-",
+    grandTotal: Number(sale.grandTotal),
+  }));
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 md:px-8">
@@ -34,50 +37,7 @@ export default async function SalesPage() {
           <CardTitle>Daftar Transaksi</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Jumlah Item</TableHead>
-                <TableHead>Jumlah Sumber Partai</TableHead>
-                <TableHead>Ringkasan Item</TableHead>
-                <TableHead className="text-right">Grand Total</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sales.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    Belum ada transaksi penjualan.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell>
-                      {new Date(sale.saleDate).toLocaleDateString("id-ID")}
-                    </TableCell>
-                    <TableCell>{sale.customer?.name ?? sale.customerName ?? "-"}</TableCell>
-                    <TableCell>{sale.saleItems.length}</TableCell>
-                    <TableCell>
-                      {sale.saleItems.reduce((sum, item) => sum + item.sources.length, 0)}
-                    </TableCell>
-                    <TableCell>{sale.saleItems[0]?.itemName || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      Rp {Number(sale.grandTotal).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/sales/${sale.id}`}>Detail</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <SalesTable initialRows={rows} />
         </CardContent>
       </Card>
     </main>

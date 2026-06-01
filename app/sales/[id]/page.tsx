@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SaleDeleteButton } from "@/components/sales/sale-delete-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -39,6 +40,10 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
           <Button asChild>
             <Link href={`/sales/${sale.id}/edit`}>Edit Penjualan</Link>
           </Button>
+          <SaleDeleteButton
+            saleId={sale.id}
+            label={`${new Date(sale.saleDate).toLocaleDateString("id-ID")} — ${sale.customer?.name ?? sale.customerName ?? "-"}`}
+          />
           <Button asChild variant="outline">
             <Link href="/sales">Kembali ke Daftar</Link>
           </Button>
