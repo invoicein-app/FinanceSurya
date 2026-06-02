@@ -111,6 +111,8 @@ export function SaleForm({
   submitLabel,
   initialValues,
 }: SaleFormProps) {
+  const isCreateMode = !initialValues;
+  const [clientRequestId] = useState(() => crypto.randomUUID());
   const [saleDate, setSaleDate] = useState(
     initialValues?.saleDate ?? getTodayDateValue(),
   );
@@ -525,6 +527,9 @@ export function SaleForm({
 
   return (
     <form className="space-y-6" onSubmit={handleFormSubmit}>
+      {isCreateMode ? (
+        <input type="hidden" name="clientRequestId" value={clientRequestId} />
+      ) : null}
       <input type="hidden" name="itemsPayload" value={serializedItemsPayload} />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">

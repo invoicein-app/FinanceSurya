@@ -73,6 +73,8 @@ export function PurchaseForm({
   submitLabel,
   initialValues,
 }: PurchaseFormProps) {
+  const isCreateMode = !initialValues;
+  const [clientRequestId] = useState(() => crypto.randomUUID());
   const [vendorId, setVendorId] = useState(initialValues?.vendorId ?? "");
   const [purchaseDate, setPurchaseDate] = useState(initialValues?.purchaseDate ?? "");
   const [batchCode, setBatchCode] = useState(initialValues?.batchCode ?? "");
@@ -115,6 +117,9 @@ export function PurchaseForm({
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
+      {isCreateMode ? (
+        <input type="hidden" name="clientRequestId" value={clientRequestId} />
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="vendorId">Vendor</Label>

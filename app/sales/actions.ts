@@ -14,6 +14,7 @@ import {
 const saleSchema = z.object({
   saleDate: z.string().min(1, "Tanggal penjualan wajib diisi"),
   customerId: z.string().min(1, "Customer wajib dipilih"),
+  clientRequestId: z.string().optional(),
   note: z.string().optional(),
 });
 
@@ -62,6 +63,7 @@ function parseSaleForm(formData: FormData) {
   const mainPayload = saleSchema.parse({
     saleDate: formData.get("saleDate"),
     customerId: formData.get("customerId"),
+    clientRequestId: formData.get("clientRequestId"),
     note: formData.get("note"),
   });
 
@@ -86,6 +88,7 @@ function parseSaleForm(formData: FormData) {
   return {
     saleDate: new Date(mainPayload.saleDate),
     customerId: mainPayload.customerId,
+    clientRequestId: mainPayload.clientRequestId?.trim() || undefined,
     note: mainPayload.note,
     items,
   };

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { collectCustomerPriceListUpsertOps } from "@/lib/pricing/upsert-customer-price-list";
 import { buildVeneerItemDescription } from "@/lib/sales/item-description";
@@ -57,6 +57,7 @@ export type CreateSaleItemInput = {
 export type CreateSaleInput = {
   saleDate: Date;
   customerId?: string;
+  clientRequestId?: string;
   note?: string;
   items: CreateSaleItemInput[];
 };
@@ -180,6 +181,16 @@ export async function createSale(input: CreateSaleInput) {
     throw new Error("Customer tidak ditemukan.");
   }
 
+  const requestKey = input.clientRequestId?.trim();
+  if (requestKey) {
+    const existing = await prisma.sale.findUnique({
+      where: { clientRequestId: requestKey },
+    });
+    if (existing) {
+      return existing;
+    }
+  }
+
   const preparedLines = await prepareSaleLines(prisma, normalizedItems);
   const { thickness: thickDec, legacy: legacyDec } =
     aggregateDeductionsFromPreparedLines(preparedLines);
@@ -200,15 +211,33 @@ export async function createSale(input: CreateSaleInput) {
 
   // Header penjualan terpisah (perlu sale.id). Batch `$transaction([...])` + nested writes ke pooler
   // transaksi Supabase sering memicu Postgres 08P01 — jalankan mutasi berurutan (satu query per round-trip).
-  const sale = await prisma.sale.create({
-    data: {
-      saleDate: input.saleDate,
-      customerId: customer?.id ?? null,
-      customerName: sanitizePgText(customer?.name ?? null),
-      note: sanitizePgText(input.note ?? null),
-      grandTotal: grandTotal.toString(),
-    },
-  });
+  let sale;
+  try {
+    sale = await prisma.sale.create({
+      data: {
+        clientRequestId: requestKey || null,
+        saleDate: input.saleDate,
+        customerId: customer?.id ?? null,
+        customerName: sanitizePgText(customer?.name ?? null),
+        note: sanitizePgText(input.note ?? null),
+        grandTotal: grandTotal.toString(),
+      },
+    });
+  } catch (error) {
+    if (
+      requestKey &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existing = await prisma.sale.findUnique({
+        where: { clientRequestId: requestKey },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+    throw error;
+  }
 
   const appliedThickDec = new Map<string, number>();
   const appliedLegacyDec = new Map<string, { qty: number; volume: number }>();

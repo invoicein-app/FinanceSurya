@@ -35,6 +35,7 @@ export type WoodPurchaseItemInput = {
 };
 
 export type CreateWoodPurchaseInput = {
+  clientRequestId?: string;
   vendorId: string;
   purchaseDate: Date;
   batchCode: string;
@@ -249,22 +250,50 @@ export async function deleteThicknessStockRow(id: string) {
 export async function createWoodPurchase(input: CreateWoodPurchaseInput) {
   const normalizedItems = normalizePurchaseItems(input.items);
   const calculatedGrandTotal = calculateGrandTotal(input);
+  const requestKey = input.clientRequestId?.trim();
+
+  if (requestKey) {
+    const existing = await prisma.woodPurchase.findUnique({
+      where: { clientRequestId: requestKey },
+    });
+    if (existing) {
+      return existing;
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
-    const purchase = await tx.woodPurchase.create({
-      data: {
-        vendorId: input.vendorId,
-        purchaseDate: input.purchaseDate,
-        batchCode: input.batchCode,
-        documentNumber: input.documentNumber,
-        note: input.note,
-        bpCost: input.bpCost.toString(),
-        cuttingCost: input.cuttingCost.toString(),
-        shippingCost: input.shippingCost.toString(),
-        woodPrice: input.woodPrice.toString(),
-        grandTotal: calculatedGrandTotal.toString(),
-      },
-    });
+    let purchase;
+    try {
+      purchase = await tx.woodPurchase.create({
+        data: {
+          clientRequestId: requestKey || null,
+          vendorId: input.vendorId,
+          purchaseDate: input.purchaseDate,
+          batchCode: input.batchCode,
+          documentNumber: input.documentNumber,
+          note: input.note,
+          bpCost: input.bpCost.toString(),
+          cuttingCost: input.cuttingCost.toString(),
+          shippingCost: input.shippingCost.toString(),
+          woodPrice: input.woodPrice.toString(),
+          grandTotal: calculatedGrandTotal.toString(),
+        },
+      });
+    } catch (error) {
+      if (
+        requestKey &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const existing = await prisma.woodPurchase.findUnique({
+          where: { clientRequestId: requestKey },
+        });
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
 
     await tx.woodPurchaseItem.createMany({
       data: normalizedItems.map((item, index) => ({

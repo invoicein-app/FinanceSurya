@@ -88,6 +88,7 @@ model Vendor {
 
 model WoodPurchase {
   id               String                         @id @default(cuid())
+  clientRequestId  String?                        @unique
   vendorId         String
   purchaseDate     DateTime
   batchCode        String
@@ -151,6 +152,7 @@ model WoodPurchaseItem {
 
 model Sale {
   id           String     @id @default(cuid())
+  clientRequestId String? @unique
   customerId   String?
   saleDate     DateTime
   customerName String?

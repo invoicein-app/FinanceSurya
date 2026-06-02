@@ -15,6 +15,7 @@ import {
 } from "@/lib/services/wood-purchase-service";
 
 const purchaseSchema = z.object({
+  clientRequestId: z.string().optional(),
   vendorId: z.string().min(1, "Vendor wajib dipilih"),
   purchaseDate: z.string().min(1, "Tanggal pembelian wajib diisi"),
   batchCode: z.string().min(1, "Kode batch/truk wajib diisi"),
@@ -51,6 +52,7 @@ export async function updatePurchaseAction(id: string, formData: FormData) {
 
 function parsePurchaseForm(formData: FormData) {
   const main = purchaseSchema.parse({
+    clientRequestId: formData.get("clientRequestId"),
     vendorId: formData.get("vendorId"),
     purchaseDate: formData.get("purchaseDate"),
     batchCode: formData.get("batchCode"),
@@ -86,6 +88,7 @@ function parsePurchaseForm(formData: FormData) {
 
   return {
     vendorId: main.vendorId,
+    clientRequestId: main.clientRequestId?.trim() || undefined,
     purchaseDate: new Date(main.purchaseDate),
     batchCode: main.batchCode,
     documentNumber: main.documentNumber,
