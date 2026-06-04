@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { parseThicknessMmForStock, thicknessMmMatches } from "@/lib/sales/thickness-mm";
 
 /** Ketebalan standar veneer per partai (mm) — otomatis dibuat dengan qty 0. */
 export const DEFAULT_PARTAI_THICKNESS_MM = ["0.6", "1.2"] as const;
@@ -56,6 +57,137 @@ export function sumWoodPurchaseDetailVolume(items: Array<{ volume: unknown }>): 
   return items.reduce((sum, row) => sum + Number(row.volume ?? 0), 0);
 }
 
+export type PartaiPurchaseAnalytics = {
+  itemCount: number;
+  totalLogQty: number;
+  totalVolume: number;
+  grandTotal: number;
+  avgPricePerM3: number | null;
+};
+
+export type PartaiGradeOutputRow = {
+  grade: string;
+  qty: number;
+  sharePercent: number;
+};
+
+export type PartaiLengthDistributionRow = {
+  label: string;
+  qty: number;
+  sharePercent: number;
+};
+
+export type PartaiVeneerOutputAnalytics = {
+  allocationCount: number;
+  totalOutputQty: number;
+  gradeRows: PartaiGradeOutputRow[];
+  lengthRows: PartaiLengthDistributionRow[];
+};
+
+function normalizeVeneerGrade(category: string | null | undefined): string {
+  const raw = String(category ?? "").trim();
+  if (!raw) {
+    return "Tanpa grade";
+  }
+  const upper = raw.toUpperCase();
+  if (upper === "A" || upper === "B" || upper === "C") {
+    return upper;
+  }
+  return raw;
+}
+
+function normalizeLengthCategory(length: string | null | undefined): string {
+  const raw = String(length ?? "").trim();
+  return raw.length > 0 ? raw : "(kosong)";
+}
+
+/** Metrik pembelian mentah dari baris `WoodPurchaseItem` (bukan hasil veneer). */
+export function computePartaiPurchaseAnalytics(
+  purchase: {
+    grandTotal: unknown;
+    items: Array<{ volume: unknown; logQty: unknown }>;
+  },
+): PartaiPurchaseAnalytics {
+  const items = purchase.items;
+  const totalVolume = sumWoodPurchaseDetailVolume(items);
+  const grandTotal = Number(purchase.grandTotal ?? 0);
+  const avgPricePerM3 = totalVolume > 0 ? grandTotal / totalVolume : null;
+  const totalLogQty = items.reduce((sum, row) => sum + Number(row.logQty ?? 0), 0);
+
+  return {
+    itemCount: items.length,
+    totalLogQty,
+    totalVolume,
+    grandTotal,
+    avgPricePerM3,
+  };
+}
+
+/**
+ * Agregasi hasil veneer dari baris alokasi penjualan yang terhubung ke partai (`SaleItemSource` → item).
+ * Grade dari `SaleItem.category` (Mutu A/B/C di form). Qty memakai `qtyTaken` per alokasi.
+ */
+export function aggregatePartaiVeneerOutputAnalytics(
+  rows: Array<{
+    qtyTaken: number;
+    gradeLabel: string | null;
+    lengthLabel: string | null;
+  }>,
+): PartaiVeneerOutputAnalytics {
+  const gradeMap = new Map<string, number>();
+  const lengthMap = new Map<string, number>();
+  let totalOutputQty = 0;
+
+  for (const row of rows) {
+    const qty = Number(row.qtyTaken);
+    if (qty <= 0) {
+      continue;
+    }
+    totalOutputQty += qty;
+    const grade = normalizeVeneerGrade(row.gradeLabel);
+    gradeMap.set(grade, (gradeMap.get(grade) ?? 0) + qty);
+    const lengthKey = normalizeLengthCategory(row.lengthLabel);
+    lengthMap.set(lengthKey, (lengthMap.get(lengthKey) ?? 0) + qty);
+  }
+
+  const gradeRows: PartaiGradeOutputRow[] = Array.from(gradeMap.entries())
+    .map(([grade, qty]) => ({
+      grade,
+      qty,
+      sharePercent: totalOutputQty > 0 ? (qty / totalOutputQty) * 100 : 0,
+    }))
+    .sort((a, b) => {
+      const order = ["A", "B", "C"];
+      const ai = order.indexOf(a.grade);
+      const bi = order.indexOf(b.grade);
+      if (ai !== -1 && bi !== -1) {
+        return ai - bi;
+      }
+      if (ai !== -1) {
+        return -1;
+      }
+      if (bi !== -1) {
+        return 1;
+      }
+      return b.qty - a.qty;
+    });
+
+  const lengthRows: PartaiLengthDistributionRow[] = Array.from(lengthMap.entries())
+    .map(([label, qty]) => ({
+      label,
+      qty,
+      sharePercent: totalOutputQty > 0 ? (qty / totalOutputQty) * 100 : 0,
+    }))
+    .sort((a, b) => b.qty - a.qty);
+
+  return {
+    allocationCount: rows.length,
+    totalOutputQty,
+    gradeRows,
+    lengthRows,
+  };
+}
+
 export async function getWoodPurchases() {
   return prisma.woodPurchase.findMany({
     orderBy: { purchaseDate: "desc" },
@@ -86,6 +218,349 @@ export async function getWoodPurchaseById(id: string) {
     orderBy: { thicknessMm: "asc" },
   });
   return { ...purchase, thicknessStocks };
+}
+
+export type PartaiSaleUsageSourceKind = "thickness" | "legacy_log";
+
+export type PartaiRelatedSaleUsageRow = {
+  sourceId: string;
+  saleId: string;
+  saleDate: string;
+  saleItemQty: number;
+  customerLabel: string;
+  canTransfer: boolean;
+  itemName: string;
+  unit: string | null;
+  thicknessLabel: string;
+  qtyTaken: number;
+  volumeTaken: number;
+  price: number;
+  lineSubtotal: number;
+  sourceKind: PartaiSaleUsageSourceKind;
+  legacyKapling: string | null;
+  sourceCreatedAt: string;
+  /** Mutu/grade veneer (`SaleItem.category`, mis. A/B/C). */
+  gradeLabel: string | null;
+  /** Panjang veneer (`SaleItem.length`, teks/kategori). */
+  lengthLabel: string | null;
+};
+
+export type PartaiRelatedSaleUsagesResult = {
+  rows: PartaiRelatedSaleUsageRow[];
+  summary: {
+    allocationCount: number;
+    uniqueSaleCount: number;
+    totalQtyTaken: number;
+    totalVolumeTaken: number;
+    qtyByThickness: Record<string, number>;
+  };
+};
+
+/**
+ * Semua baris alokasi penjualan yang mengonsumsi partai ini (stok ketebalan atau log/kapling lama).
+ */
+export async function getPartaiRelatedSaleUsages(
+  purchaseId: string,
+): Promise<PartaiRelatedSaleUsagesResult> {
+  const [stocks, items] = await Promise.all([
+    prisma.woodPurchaseThicknessStock.findMany({
+      where: { purchaseId },
+      select: { id: true },
+    }),
+    prisma.woodPurchaseItem.findMany({
+      where: { purchaseId },
+      select: { id: true },
+    }),
+  ]);
+
+  const stockIds = stocks.map((row) => row.id);
+  const itemIds = items.map((row) => row.id);
+  const saleLinkConditions: Prisma.SaleItemSourceWhereInput[] = [];
+
+  if (stockIds.length > 0) {
+    saleLinkConditions.push({ thicknessStockId: { in: stockIds } });
+  }
+  if (itemIds.length > 0) {
+    saleLinkConditions.push({ purchaseItemId: { in: itemIds } });
+  }
+
+  const emptySummary = {
+    allocationCount: 0,
+    uniqueSaleCount: 0,
+    totalQtyTaken: 0,
+    totalVolumeTaken: 0,
+    qtyByThickness: {} as Record<string, number>,
+  };
+
+  if (saleLinkConditions.length === 0) {
+    return { rows: [], summary: emptySummary };
+  }
+
+  const sources = await prisma.saleItemSource.findMany({
+    where: { OR: saleLinkConditions },
+    include: {
+      saleItem: {
+        include: {
+          sale: { include: { customer: true } },
+        },
+      },
+      thicknessStock: true,
+      purchaseItem: true,
+    },
+    orderBy: [
+      { saleItem: { sale: { saleDate: "desc" } } },
+      { createdAt: "desc" },
+    ],
+  });
+
+  const qtyByThickness: Record<string, number> = {};
+  const saleIds = new Set<string>();
+  let totalQtyTaken = 0;
+  let totalVolumeTaken = 0;
+
+  const rows: PartaiRelatedSaleUsageRow[] = sources.map((source) => {
+    const sale = source.saleItem.sale;
+    const sourceKind: PartaiSaleUsageSourceKind = source.thicknessStockId
+      ? "thickness"
+      : "legacy_log";
+    const thicknessLabel = source.thicknessStock
+      ? source.thicknessStock.thicknessMm.toString()
+      : (source.saleItem.thickness?.trim() || "—");
+    const qtyTaken = Number(source.qtyTaken);
+    const volumeTaken = Number(source.volumeTaken);
+
+    saleIds.add(sale.id);
+    totalQtyTaken += qtyTaken;
+    totalVolumeTaken += volumeTaken;
+
+    if (thicknessLabel !== "—" && qtyTaken > 0) {
+      qtyByThickness[thicknessLabel] = (qtyByThickness[thicknessLabel] ?? 0) + qtyTaken;
+    }
+
+    const customerLabel =
+      sale.customer?.name?.trim() || sale.customerName?.trim() || "—";
+
+    return {
+      sourceId: source.id,
+      saleId: sale.id,
+      saleDate: sale.saleDate.toISOString(),
+      saleItemQty: Number(source.saleItem.qty),
+      canTransfer: sourceKind === "thickness",
+      customerLabel,
+      itemName: source.saleItem.itemName,
+      unit: source.saleItem.unit,
+      thicknessLabel,
+      qtyTaken,
+      volumeTaken,
+      price: Number(source.saleItem.price),
+      lineSubtotal: Number(source.saleItem.subtotal),
+      sourceKind,
+      legacyKapling: source.purchaseItem?.noKapling ?? null,
+      sourceCreatedAt: source.createdAt.toISOString(),
+      gradeLabel: source.saleItem.category,
+      lengthLabel: source.saleItem.length,
+    };
+  });
+
+  return {
+    rows,
+    summary: {
+      allocationCount: rows.length,
+      uniqueSaleCount: saleIds.size,
+      totalQtyTaken,
+      totalVolumeTaken,
+      qtyByThickness,
+    },
+  };
+}
+
+export type PartaiTransferOption = {
+  id: string;
+  batchCode: string;
+  vendorName: string;
+};
+
+export async function getPartaiTransferOptions(
+  excludePurchaseId: string,
+): Promise<PartaiTransferOption[]> {
+  const rows = await prisma.woodPurchase.findMany({
+    where: { id: { not: excludePurchaseId } },
+    orderBy: [{ purchaseDate: "desc" }, { batchCode: "asc" }],
+    include: { vendor: true },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    batchCode: row.batchCode,
+    vendorName: row.vendor.name,
+  }));
+}
+
+export type PartaiTransferDestinationPreview = {
+  batchCode: string;
+  thicknessMm: string;
+  qtyAvailable: number;
+  unit: string | null;
+  hasStockRow: boolean;
+};
+
+export async function getPartaiTransferDestinationPreview(
+  destinationPurchaseId: string,
+  thicknessMmLabel: string,
+): Promise<PartaiTransferDestinationPreview | null> {
+  const normalizedMm = parseThicknessMmForStock(thicknessMmLabel);
+  if (!normalizedMm) {
+    return null;
+  }
+
+  const purchase = await prisma.woodPurchase.findUnique({
+    where: { id: destinationPurchaseId },
+    select: { batchCode: true },
+  });
+  if (!purchase) {
+    return null;
+  }
+
+  const stockRow = await prisma.woodPurchaseThicknessStock.findUnique({
+    where: {
+      purchaseId_thicknessMm: {
+        purchaseId: destinationPurchaseId,
+        thicknessMm: normalizedMm,
+      },
+    },
+  });
+
+  return {
+    batchCode: purchase.batchCode,
+    thicknessMm: normalizedMm,
+    qtyAvailable: stockRow ? Number(stockRow.qtyAvailable) : 0,
+    unit: stockRow?.unit ?? null,
+    hasStockRow: Boolean(stockRow),
+  };
+}
+
+export type TransferSaleAllocationResult = {
+  saleId: string;
+  fromPurchaseId: string;
+  destinationPurchaseId: string;
+  destinationBatchCode: string;
+  thicknessMm: string;
+  qtyTransferred: number;
+};
+
+/**
+ * Pindahkan alokasi penjualan (stok ketebalan) dari satu partai ke partai lain dalam satu transaksi DB.
+ * Harga/tanggal/customer/item tidak diubah — hanya `SaleItemSource.thicknessStockId` dan qty stok partai.
+ */
+export async function transferSaleAllocationToPartai(input: {
+  sourceId: string;
+  fromPurchaseId: string;
+  destinationPurchaseId: string;
+}): Promise<TransferSaleAllocationResult> {
+  const { sourceId, fromPurchaseId, destinationPurchaseId } = input;
+
+  if (fromPurchaseId === destinationPurchaseId) {
+    throw new Error("Partai tujuan tidak boleh sama dengan partai saat ini.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const source = await tx.saleItemSource.findUnique({
+      where: { id: sourceId },
+      include: {
+        thicknessStock: { include: { purchase: true } },
+        saleItem: true,
+      },
+    });
+
+    if (!source) {
+      throw new Error("Alokasi penjualan tidak ditemukan.");
+    }
+    if (!source.thicknessStockId || !source.thicknessStock) {
+      throw new Error(
+        "Alokasi log/kapling lama tidak bisa dipindahkan dari sini. Ubah lewat edit penjualan.",
+      );
+    }
+    if (source.thicknessStock.purchaseId !== fromPurchaseId) {
+      throw new Error("Alokasi ini tidak terhubung ke partai yang sedang dibuka.");
+    }
+
+    const qtyTaken = Number(source.qtyTaken);
+    if (qtyTaken <= 0) {
+      throw new Error("Qty alokasi tidak valid.");
+    }
+
+    const itemQty = Number(source.saleItem.qty);
+    if (itemQty <= 0) {
+      throw new Error("Qty item penjualan tidak valid.");
+    }
+    if (Math.abs(itemQty - qtyTaken) > 1e-6) {
+      throw new Error(
+        "Qty alokasi tidak sama dengan qty item. Sesuaikan lewat edit penjualan sebelum memindahkan.",
+      );
+    }
+
+    const mmFromItem = parseThicknessMmForStock(source.saleItem.thickness);
+    if (!mmFromItem) {
+      throw new Error(
+        `Isi tebal (mm) pada item "${source.saleItem.itemName}" agar pemindahan bisa dilakukan.`,
+      );
+    }
+    if (
+      !thicknessMmMatches(source.thicknessStock.thicknessMm.toString(), mmFromItem)
+    ) {
+      throw new Error(
+        `Tebal item (${mmFromItem} mm) tidak cocok dengan stok partai asal (${source.thicknessStock.thicknessMm} mm).`,
+      );
+    }
+
+    const destStock = await tx.woodPurchaseThicknessStock.findUnique({
+      where: {
+        purchaseId_thicknessMm: {
+          purchaseId: destinationPurchaseId,
+          thicknessMm: mmFromItem,
+        },
+      },
+      include: { purchase: true },
+    });
+
+    if (!destStock) {
+      throw new Error(
+        `Partai tujuan tidak memiliki baris stok untuk ketebalan ${mmFromItem} mm. Tambahkan baris stok di detail partai tujuan.`,
+      );
+    }
+
+    const available = Number(destStock.qtyAvailable);
+    if (available < qtyTaken) {
+      throw new Error(
+        `Stok tidak cukup di partai tujuan "${destStock.purchase.batchCode}" untuk ${mmFromItem} mm: tersedia ${available.toLocaleString("id-ID")}, dibutuhkan ${qtyTaken.toLocaleString("id-ID")}.`,
+      );
+    }
+
+    await tx.woodPurchaseThicknessStock.update({
+      where: { id: source.thicknessStockId },
+      data: { qtyAvailable: { increment: qtyTaken.toString() } },
+    });
+
+    await tx.woodPurchaseThicknessStock.update({
+      where: { id: destStock.id },
+      data: { qtyAvailable: { decrement: qtyTaken.toString() } },
+    });
+
+    await tx.saleItemSource.update({
+      where: { id: sourceId },
+      data: { thicknessStockId: destStock.id },
+    });
+
+    // TODO: PartaiAllocationTransfer log table when audit history is needed.
+
+    return {
+      saleId: source.saleItem.saleId,
+      fromPurchaseId,
+      destinationPurchaseId,
+      destinationBatchCode: destStock.purchase.batchCode,
+      thicknessMm: mmFromItem,
+      qtyTransferred: qtyTaken,
+    };
+  });
 }
 
 export async function getPurchaseItemSources() {

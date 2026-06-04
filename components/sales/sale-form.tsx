@@ -606,11 +606,11 @@ export function SaleForm({
 
           return (
             <div key={item.id} className="space-y-3 rounded-lg border p-3">
-              <div className="grid gap-3 md:grid-cols-12">
-                <div className="md:col-span-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+                <div className="flex min-w-0 flex-col gap-2 lg:col-span-3">
                   <Label>Template Barang</Label>
                   <select
-                    className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30"
                     value={item.templateId ?? ""}
                     disabled={!customerId || templatesLoading}
                     onChange={(event) => applyTemplateToItem(item.id, event.target.value)}
@@ -632,17 +632,12 @@ export function SaleForm({
                       </>
                     )}
                   </select>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {customerId
-                      ? "Template per customer — dari tabel VeneerTemplate (tersinkron dari histori harga)."
-                      : "Pilih customer untuk melihat template miliknya."}
-                  </p>
                 </div>
-                <div className="md:col-span-4">
+                <div className="flex min-w-0 flex-col gap-2 lg:col-span-4">
                   <Label>Deskripsi Item (otomatis)</Label>
                   <Input value={itemDescription} disabled />
                 </div>
-                <div className="md:col-span-2">
+                <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
                   <Label>Qty *</Label>
                   <Input
                     value={item.qty}
@@ -660,7 +655,7 @@ export function SaleForm({
                     required
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="flex min-w-0 flex-col gap-2 lg:col-span-3">
                   <Label htmlFor={`sale-finance-price-${item.id}`}>
                     Harga Penjualan Finance *
                   </Label>
@@ -672,25 +667,31 @@ export function SaleForm({
                     }
                     required
                   />
-                  {priceHint ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-                        Harga terakhir customer ini
-                      </span>{" "}
-                      Rp{" "}
-                      {Number(priceHint.latestPrice).toLocaleString("id-ID")}
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="h-auto p-0 align-baseline text-xs"
-                        onClick={() => updateItem(item.id, "price", priceHint.latestPrice)}
-                      >
-                        Terapkan
-                      </Button>
-                    </p>
-                  ) : null}
                 </div>
-                <div className="md:col-span-2">
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {customerId
+                  ? "Template per customer — dari tabel VeneerTemplate (tersinkron dari histori harga)."
+                  : "Pilih customer untuk melihat template miliknya."}
+              </p>
+              {priceHint ? (
+                <p className="text-xs text-muted-foreground">
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                    Harga terakhir customer ini
+                  </span>{" "}
+                  Rp {Number(priceHint.latestPrice).toLocaleString("id-ID")}
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 align-baseline text-xs"
+                    onClick={() => updateItem(item.id, "price", priceHint.latestPrice)}
+                  >
+                    Terapkan
+                  </Button>
+                </p>
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+                <div className="flex min-w-0 flex-col gap-2 lg:col-span-3">
                   <Label>Subtotal</Label>
                   <Input
                     value={(
@@ -699,7 +700,10 @@ export function SaleForm({
                     disabled
                   />
                 </div>
-                <div className="md:col-span-2 md:self-end">
+                <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-3 lg:col-start-10">
+                  <Label className="hidden lg:block lg:invisible" aria-hidden="true">
+                    Aksi
+                  </Label>
                   <Button
                     type="button"
                     variant="destructive"
@@ -710,15 +714,16 @@ export function SaleForm({
                     Hapus Item
                   </Button>
                 </div>
-                <div className="md:col-span-12">
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Spesifikasi (opsional) dipakai untuk mengelompokkan item yang sama — mempengaruhi
-                    referensi harga per customer.
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-10">
-                    <div className="md:col-span-2">
-                      <Label>Mutu</Label>
-                      <Input
+              </div>
+              <div>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Spesifikasi (opsional) dipakai untuk mengelompokkan item yang sama — mempengaruhi
+                  referensi harga per customer.
+                </p>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-10 lg:items-end">
+                  <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+                    <Label>Mutu</Label>
+                    <Input
                         value={item.category}
                         onChange={(event) =>
                           updateItem(item.id, "category", event.target.value)
@@ -726,10 +731,10 @@ export function SaleForm({
                         onBlur={() => tryAutoFillExactPrice(item.id)}
                         placeholder="A/B/C (opsional)"
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label>Tebal (mm)</Label>
-                      <Input
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+                    <Label>Tebal (mm)</Label>
+                    <Input
                         value={item.thickness}
                         inputMode="decimal"
                         autoComplete="off"
@@ -748,19 +753,19 @@ export function SaleForm({
                         onBlur={() => tryAutoFillExactPrice(item.id)}
                         placeholder="Mis. 0.6 (titik)"
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label>Lebar</Label>
-                      <Input
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+                    <Label>Lebar</Label>
+                    <Input
                         value={item.width}
                         onChange={(event) => updateItem(item.id, "width", event.target.value)}
                         onBlur={() => tryAutoFillExactPrice(item.id)}
                         placeholder="Opsional"
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label>Panjang</Label>
-                      <Input
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+                    <Label>Panjang</Label>
+                    <Input
                         value={item.length}
                         onChange={(event) =>
                           updateItem(item.id, "length", event.target.value)
@@ -768,26 +773,25 @@ export function SaleForm({
                         onBlur={() => tryAutoFillExactPrice(item.id)}
                         placeholder="Opsional"
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label>Satuan</Label>
-                      <Input
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+                    <Label>Satuan</Label>
+                    <Input
                         value={item.unit}
                         onChange={(event) => updateItem(item.id, "unit", event.target.value)}
                         onBlur={() => tryAutoFillExactPrice(item.id)}
                         placeholder="m2"
                       />
-                    </div>
                   </div>
                 </div>
-                <div className="md:col-span-12">
-                  <Label>Catatan Item</Label>
-                  <Input
-                    value={item.note}
-                    onChange={(event) => updateItem(item.id, "note", event.target.value)}
-                    placeholder="Catatan item penjualan"
-                  />
-                </div>
+              </div>
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label>Catatan Item</Label>
+                <Input
+                  value={item.note}
+                  onChange={(event) => updateItem(item.id, "note", event.target.value)}
+                  placeholder="Catatan item penjualan"
+                />
               </div>
 
               <div className="space-y-3 rounded-md border border-dashed p-3">

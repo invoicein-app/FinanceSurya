@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+
 import {
   CUSTOMER_DUPLICATE_NAME_MESSAGE,
   createCustomer,
@@ -16,6 +18,7 @@ const customerSchema = z.object({
 });
 
 export async function createCustomerAction(formData: FormData) {
+  await ensureAuthenticated();
   const payload = customerSchema.parse({
     name: formData.get("name"),
   });
@@ -38,6 +41,7 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(formData: FormData) {
+  await ensureAuthenticated();
   const id = String(formData.get("id") ?? "");
   const payload = customerSchema.parse({
     name: formData.get("name"),
@@ -65,6 +69,7 @@ export async function updateCustomerAction(formData: FormData) {
 }
 
 export async function deleteCustomerAction(formData: FormData) {
+  await ensureAuthenticated();
   const id = String(formData.get("id") ?? "");
   if (!id) {
     throw new Error("ID customer tidak valid.");

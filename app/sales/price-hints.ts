@@ -1,5 +1,6 @@
 "use server";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
 import {
   findCustomerLatestPriceByExactItemKey,
   getCustomerItemSuggestions,
@@ -19,6 +20,7 @@ export async function fetchCustomerItemSuggestionsAction(
   keyword?: string,
   limit = 8,
 ) {
+  await ensureAuthenticated();
   if (!customerId) {
     return [];
   }
@@ -34,6 +36,7 @@ export async function fetchExactCustomerPriceAction(input: {
   length?: string;
   unit?: string;
 }) {
+  await ensureAuthenticated();
   if (!input.customerId) {
     return null;
   }
@@ -41,6 +44,7 @@ export async function fetchExactCustomerPriceAction(input: {
 }
 
 export async function fetchCustomerVeneerTemplatesAction(customerId: string) {
+  await ensureAuthenticated();
   if (!customerId) {
     return [];
   }

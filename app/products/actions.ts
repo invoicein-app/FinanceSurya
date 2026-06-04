@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+
 import { createProduct } from "@/lib/services/product-service";
 
 const productSchema = z.object({
@@ -15,6 +17,7 @@ const productSchema = z.object({
 });
 
 export async function createProductAction(formData: FormData) {
+  await ensureAuthenticated();
   const payload = productSchema.parse({
     code: formData.get("code"),
     name: formData.get("name"),

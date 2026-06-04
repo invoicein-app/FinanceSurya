@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+
 import {
   createSale,
   deleteSale,
@@ -19,6 +21,7 @@ const saleSchema = z.object({
 });
 
 export async function createSaleAction(formData: FormData) {
+  await ensureAuthenticated();
   const payload = parseSaleForm(formData);
   await createSale(payload);
 
@@ -31,6 +34,7 @@ export async function createSaleAction(formData: FormData) {
 }
 
 export async function deleteSaleAction(id: string) {
+  await ensureAuthenticated();
   const trimmedId = id.trim();
   if (!trimmedId) {
     throw new Error("ID penjualan tidak valid.");
@@ -48,6 +52,7 @@ export async function deleteSaleAction(id: string) {
 }
 
 export async function updateSaleAction(id: string, formData: FormData) {
+  await ensureAuthenticated();
   const payload = parseSaleForm(formData);
   await updateSale(id, payload);
 

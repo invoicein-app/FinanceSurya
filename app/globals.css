@@ -50,37 +50,45 @@
 
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.2 0.02 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.02 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.2 0.02 155);
+  /* Forest green — selaras mockup riwayat penjualan */
+  --primary: oklch(0.42 0.1 155);
+  --primary-foreground: oklch(0.99 0.01 155);
+  --secondary: oklch(0.96 0.02 155);
+  --secondary-foreground: oklch(0.32 0.06 155);
+  --muted: oklch(0.96 0.015 155);
+  --muted-foreground: oklch(0.5 0.03 155);
+  --accent: oklch(0.94 0.03 155);
+  --accent-foreground: oklch(0.32 0.06 155);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0.02 155);
+  --input: oklch(0.92 0.02 155);
+  --ring: oklch(0.55 0.08 155);
+  --app-surface: oklch(0.98 0.012 155);
+  --table-header: oklch(0.965 0.022 155);
+  --table-card-header: oklch(0.99 0.01 155);
+  --table-card-border: oklch(0.91 0.018 155);
+  --table-border: oklch(0.92 0.02 155);
+  --table-row-hover: oklch(0.975 0.018 155);
+  --table-footer: oklch(0.985 0.012 155);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.99 0.008 155);
+  --sidebar-foreground: oklch(0.28 0.04 155);
+  --sidebar-primary: oklch(0.42 0.1 155);
+  --sidebar-primary-foreground: oklch(0.99 0.01 155);
+  --sidebar-accent: oklch(0.94 0.03 155);
+  --sidebar-accent-foreground: oklch(0.32 0.06 155);
+  --sidebar-border: oklch(0.9 0.02 155);
+  --sidebar-ring: oklch(0.55 0.08 155);
 }
 
 .dark {
@@ -115,6 +123,64 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --table-header: oklch(0.28 0.02 155);
+  --table-card-header: oklch(0.22 0.02 155);
+  --table-card-border: oklch(1 0 0 / 12%);
+  --table-border: oklch(1 0 0 / 10%);
+  --table-row-hover: oklch(0.26 0.02 155);
+  --table-footer: oklch(0.2 0 0);
+}
+
+@layer components {
+  [data-dashboard-table] [data-slot="table-header"] [data-slot="table-row"] {
+    border-bottom-width: 0;
+  }
+
+  [data-dashboard-table] [data-slot="table-header"] [data-slot="table-row"]:hover {
+    background-color: transparent;
+  }
+
+  [data-dashboard-table] [data-slot="table-head"] {
+    height: 3rem;
+    border-bottom: 1px solid var(--table-border);
+    background-color: var(--table-header);
+    padding-inline: 1rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  [data-dashboard-table] [data-slot="table-head"]:first-child {
+    padding-inline-start: 1.25rem;
+  }
+
+  [data-dashboard-table] [data-slot="table-head"]:last-child {
+    padding-inline-end: 1.25rem;
+  }
+
+  [data-dashboard-table] [data-slot="table-body"] [data-slot="table-row"] {
+    border-bottom: 1px solid color-mix(in oklch, var(--table-border) 70%, transparent);
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  [data-dashboard-table] [data-slot="table-body"] [data-slot="table-row"]:last-child {
+    border-bottom-width: 0;
+  }
+
+  @media (min-width: 768px) {
+    [data-dashboard-table] [data-slot="table-body"] [data-slot="table-row"]:hover {
+      background-color: var(--table-row-hover);
+      box-shadow: inset 3px 0 0 0 var(--primary);
+    }
+  }
+
+  [data-dashboard-table] [data-slot="table-body"] [data-slot="table-row"]:hover {
+    background-color: var(--table-row-hover);
+  }
 }
 
 @layer base {

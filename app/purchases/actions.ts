@@ -4,12 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+
 import { normalizeThicknessMmFormValue } from "@/lib/sales/thickness-mm";
 import {
   createThicknessStockRow,
   createWoodPurchase,
   deleteThicknessStockRow,
   deleteWoodPurchase,
+  getPartaiTransferDestinationPreview,
+  transferSaleAllocationToPartai,
   updateWoodPurchase,
   type WoodPurchaseItemInput,
 } from "@/lib/services/wood-purchase-service";
@@ -29,6 +33,7 @@ const purchaseSchema = z.object({
 });
 
 export async function createPurchaseAction(formData: FormData) {
+  await ensureAuthenticated();
   const payload = parsePurchaseForm(formData);
   await createWoodPurchase(payload);
   revalidatePath("/purchases");
@@ -39,6 +44,7 @@ export async function createPurchaseAction(formData: FormData) {
 }
 
 export async function updatePurchaseAction(id: string, formData: FormData) {
+  await ensureAuthenticated();
   const payload = parsePurchaseForm(formData);
   await updateWoodPurchase(id, payload);
   revalidatePath("/purchases");
@@ -134,6 +140,7 @@ const thicknessStockSchema = z.object({
 });
 
 export async function addThicknessStockAction(formData: FormData) {
+  await ensureAuthenticated();
   const purchaseId = String(formData.get("purchaseId") ?? "").trim();
   if (!purchaseId) {
     throw new Error("Partai tidak valid.");
@@ -164,6 +171,7 @@ export async function addThicknessStockAction(formData: FormData) {
 }
 
 export async function deletePurchaseAction(id: string) {
+  await ensureAuthenticated();
   const trimmedId = id.trim();
   if (!trimmedId) {
     throw new Error("ID partai tidak valid.");
@@ -179,7 +187,49 @@ export async function deletePurchaseAction(id: string) {
   return { success: true as const };
 }
 
+export async function previewPartaiTransferDestinationAction(
+  destinationPurchaseId: string,
+  thicknessMmLabel: string,
+) {
+  await ensureAuthenticated();
+  const destId = destinationPurchaseId.trim();
+  if (!destId) {
+    throw new Error("Partai tujuan wajib dipilih.");
+  }
+  return getPartaiTransferDestinationPreview(destId, thicknessMmLabel);
+}
+
+export async function transferSaleAllocationAction(
+  sourceId: string,
+  fromPurchaseId: string,
+  destinationPurchaseId: string,
+) {
+  await ensureAuthenticated();
+  const sid = sourceId.trim();
+  const fromId = fromPurchaseId.trim();
+  const destId = destinationPurchaseId.trim();
+  if (!sid || !fromId || !destId) {
+    throw new Error("Data pemindahan tidak lengkap.");
+  }
+
+  const result = await transferSaleAllocationToPartai({
+    sourceId: sid,
+    fromPurchaseId: fromId,
+    destinationPurchaseId: destId,
+  });
+
+  revalidatePath(`/purchases/${result.fromPurchaseId}`);
+  revalidatePath(`/purchases/${result.destinationPurchaseId}`);
+  revalidatePath(`/sales/${result.saleId}`);
+  revalidatePath("/purchases");
+  revalidatePath("/stocks");
+  revalidatePath("/sales");
+
+  return result;
+}
+
 export async function deleteThicknessStockAction(formData: FormData) {
+  await ensureAuthenticated();
   const purchaseId = String(formData.get("purchaseId") ?? "").trim();
   const stockId = String(formData.get("stockId") ?? "").trim();
   if (!purchaseId || !stockId) {

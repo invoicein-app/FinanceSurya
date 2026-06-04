@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+
 import {
   createVendor,
   deleteVendor,
@@ -14,6 +16,7 @@ const vendorSchema = z.object({
 });
 
 export async function createVendorAction(formData: FormData) {
+  await ensureAuthenticated();
   const payload = vendorSchema.parse({
     name: formData.get("name"),
   });
@@ -39,6 +42,7 @@ export async function updateVendorAction(formData: FormData) {
 }
 
 export async function deleteVendorAction(formData: FormData) {
+  await ensureAuthenticated();
   const id = String(formData.get("id") ?? "");
   if (!id) {
     throw new Error("ID vendor tidak valid.");
