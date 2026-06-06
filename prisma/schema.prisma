@@ -184,12 +184,27 @@ model InvoiceGroup {
   notes             String?
   customer          Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
   sales             Sale[]
+  payments          InvoiceGroupPayment[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
   @@index([customerId])
   @@index([invoiceDate])
   @@index([paymentStatus])
+}
+
+/// Catatan pelunasan per invoice group — jejak tanggal dan nominal tiap pembayaran.
+model InvoiceGroupPayment {
+  id             String       @id @default(cuid())
+  invoiceGroupId String
+  paymentDate    DateTime
+  amount         Decimal      @db.Decimal(14, 2)
+  notes          String?
+  invoiceGroup   InvoiceGroup @relation(fields: [invoiceGroupId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([invoiceGroupId])
+  @@index([paymentDate])
 }
 
 enum InvoicePaymentStatus {

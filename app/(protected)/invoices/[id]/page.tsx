@@ -155,6 +155,39 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
         </div>
       </FormSectionCard>
 
+      {group.payments.length > 0 ? (
+        <FormSectionCard title="Riwayat pelunasan" className="mb-6">
+          <DashboardTableArea>
+            <Table>
+              <TableHeader>
+                <TableRow className={TABLE_HEADER_ROW_CLASS}>
+                  <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
+                  <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Jumlah</TableHead>
+                  <TableHead className={TABLE_HEAD_CLASS}>Catatan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {group.payments.map((payment) => (
+                  <TableRow key={payment.id} className={TABLE_BODY_ROW_CLASS}>
+                    <TableCell className={TABLE_CELL_DATE}>
+                      {payment.paymentDate.toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell className={TABLE_CELL_AMOUNT}>
+                      Rp {Number(payment.amount).toLocaleString("id-ID")}
+                    </TableCell>
+                    <TableCell className={TABLE_CELL_DEFAULT}>{payment.notes || "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DashboardTableArea>
+        </FormSectionCard>
+      ) : null}
+
       <FormSectionCard title="Edit invoice & pembayaran" className="mb-6">
         <InvoiceGroupEditForm
           invoiceGroupId={group.id}

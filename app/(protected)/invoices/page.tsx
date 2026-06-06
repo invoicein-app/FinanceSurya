@@ -4,35 +4,13 @@ import type { InvoicePaymentStatus } from "@prisma/client";
 
 import { AppListPage } from "@/components/layout/app-list-page";
 import { DataListCard } from "@/components/layout/data-list-card";
-import {
-  DashboardTableArea,
-  FormSectionCard,
-  SELECT_FIELD_CLASS,
-  TABLE_BODY_ROW_CLASS,
-  TABLE_CELL_AMOUNT,
-  TABLE_CELL_DATE,
-  TABLE_CELL_DEFAULT,
-  TABLE_CELL_NUMERIC,
-  TABLE_CELL_VENDOR,
-  TABLE_EMPTY_CELL,
-  TABLE_HEAD_CLASS,
-  TABLE_HEADER_ROW_CLASS,
-} from "@/components/layout/app-theme-ui";
-import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
+import { FormSectionCard, SELECT_FIELD_CLASS } from "@/components/layout/app-theme-ui";
+import { InvoiceGroupsTable } from "@/components/invoices/invoice-groups-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { getCustomers } from "@/lib/services/customer-service";
 import { getInvoiceGroups } from "@/lib/services/invoice-group-service";
-import { cn } from "@/lib/utils";
 
 type InvoicesPageProps = {
   searchParams: Promise<{
@@ -70,6 +48,18 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
     }),
     getCustomers(),
   ]);
+
+  const rows = groups.map((group) => ({
+    id: group.id,
+    manualInvoiceCode: group.manualInvoiceCode,
+    invoiceDate: group.invoiceDate.toISOString(),
+    customerName: group.customer.name,
+    saleCount: group._count.sales,
+    totalAmount: Number(group.totalAmount),
+    paidAmount: Number(group.paidAmount),
+    remainingAmount: Number(group.remainingAmount),
+    paymentStatus: group.paymentStatus,
+  }));
 
   return (
     <AppListPage
@@ -146,69 +136,9 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
 
       <DataListCard
         title="Daftar Invoice Group"
-        description={`${groups.length} invoice group${groups.length === 1 ? "" : ""} ditampilkan.`}
+        description={`${groups.length} invoice group ditampilkan. Klik Pelunasan untuk catat pembayaran langsung dari list.`}
       >
-        <DashboardTableArea>
-          <Table>
-            <TableHeader>
-              <TableRow className={TABLE_HEADER_ROW_CLASS}>
-                <TableHead className={TABLE_HEAD_CLASS}>Kode Invoice</TableHead>
-                <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
-                <TableHead className={TABLE_HEAD_CLASS}>Customer</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-center")}>Penjualan</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Total</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Dibayar</TableHead>
-                <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Sisa</TableHead>
-                <TableHead className={TABLE_HEAD_CLASS}>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className={TABLE_EMPTY_CELL}>
-                    Tidak ada invoice group yang cocok dengan filter. Buat dari halaman Penjualan.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                groups.map((group) => (
-                  <TableRow key={group.id} className={TABLE_BODY_ROW_CLASS}>
-                    <TableCell className={TABLE_CELL_DEFAULT}>
-                      <Link
-                        href={`/invoices/${group.id}`}
-                        className="font-semibold text-primary hover:underline"
-                      >
-                        {group.manualInvoiceCode}
-                      </Link>
-                    </TableCell>
-                    <TableCell className={TABLE_CELL_DATE}>
-                      {group.invoiceDate.toLocaleDateString("id-ID", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </TableCell>
-                    <TableCell className={TABLE_CELL_VENDOR}>{group.customer.name}</TableCell>
-                    <TableCell className={cn(TABLE_CELL_NUMERIC, "text-center")}>
-                      {group._count.sales}
-                    </TableCell>
-                    <TableCell className={TABLE_CELL_AMOUNT}>
-                      Rp {Number(group.totalAmount).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell className={TABLE_CELL_AMOUNT}>
-                      Rp {Number(group.paidAmount).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell className={TABLE_CELL_AMOUNT}>
-                      Rp {Number(group.remainingAmount).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell>
-                      <InvoiceStatusBadge status={group.paymentStatus} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </DashboardTableArea>
+        <InvoiceGroupsTable initialRows={rows} />
       </DataListCard>
     </AppListPage>
   );

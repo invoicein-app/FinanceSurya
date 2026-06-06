@@ -21,6 +21,19 @@ export const MIXED_CUSTOMER_INVOICE_MESSAGE =
 export const SALE_NOT_IN_INVOICE_MESSAGE =
   "Penjualan ini tidak terhubung ke invoice group.";
 
+export const INVOICE_ALREADY_PAID_MESSAGE = "Invoice ini sudah lunas.";
+
+export function formatPaymentExceedsRemainingMessage(remainingAmount: number): string {
+  return `Jumlah pelunasan melebihi sisa tagihan (Rp ${remainingAmount.toLocaleString("id-ID")}).`;
+}
+
+export type RecordInvoiceGroupPaymentInput = {
+  invoiceGroupId: string;
+  paymentDate: Date;
+  amount: number;
+  notes?: string;
+};
+
 export type CreateInvoiceGroupInput = {
   saleIds: string[];
   manualInvoiceCode: string;
@@ -112,6 +125,9 @@ export async function getInvoiceGroupById(id: string) {
     where: { id },
     include: {
       customer: true,
+      payments: {
+        orderBy: { paymentDate: "desc" },
+      },
       sales: saleWithPartaiInclude,
     },
   });
@@ -246,6 +262,54 @@ export async function updateInvoiceGroup(id: string, input: UpdateInvoiceGroupIn
 
 export async function updateInvoiceGroupPayment(id: string, paidAmount: number) {
   return updateInvoiceGroup(id, { paidAmount });
+}
+
+export async function recordInvoiceGroupPayment(input: RecordInvoiceGroupPaymentInput) {
+  const trimmedId = input.invoiceGroupId.trim();
+  if (!trimmedId) {
+    throw new Error("ID invoice group tidak valid.");
+  }
+
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Jumlah pelunasan wajib lebih dari 0.");
+  }
+
+  const group = await prisma.invoiceGroup.findUnique({ where: { id: trimmedId } });
+  if (!group) {
+    throw new Error("Invoice group tidak ditemukan.");
+  }
+
+  const totalAmount = Number(group.totalAmount);
+  const currentPaid = Number(group.paidAmount);
+  const remaining = Math.max(totalAmount - currentPaid, 0);
+
+  if (remaining <= 0) {
+    throw new Error(INVOICE_ALREADY_PAID_MESSAGE);
+  }
+
+  if (amount > remaining + 0.005) {
+    throw new Error(formatPaymentExceedsRemainingMessage(remaining));
+  }
+
+  const newPaid = currentPaid + amount;
+  const paymentFields = buildPaymentFields(totalAmount, newPaid);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.invoiceGroupPayment.create({
+      data: {
+        invoiceGroupId: trimmedId,
+        paymentDate: input.paymentDate,
+        amount: amount.toFixed(2),
+        notes: input.notes?.trim() || null,
+      },
+    });
+
+    return tx.invoiceGroup.update({
+      where: { id: trimmedId },
+      data: paymentFields,
+    });
+  });
 }
 
 export async function deleteInvoiceGroup(id: string) {

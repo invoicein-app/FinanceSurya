@@ -8,6 +8,7 @@ import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
 import {
   createInvoiceGroup,
   deleteInvoiceGroup,
+  recordInvoiceGroupPayment,
   removeSaleFromInvoiceGroup,
   updateInvoiceGroup,
 } from "@/lib/services/invoice-group-service";
@@ -163,4 +164,59 @@ export async function updateInvoiceGroupPaymentAction(formData: FormData) {
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${parsed.invoiceGroupId}`);
   revalidatePath("/sales");
+}
+
+const recordPaymentSchema = z.object({
+  invoiceGroupId: z.string().min(1),
+  paymentDate: z.string().min(1, "Tanggal pelunasan wajib diisi."),
+  amount: z.coerce.number().positive("Jumlah pelunasan wajib lebih dari 0."),
+  notes: z.string().optional(),
+});
+
+export type RecordInvoiceGroupPaymentActionResult =
+  | {
+      ok: true;
+      paidAmount: number;
+      remainingAmount: number;
+      paymentStatus: string;
+    }
+  | { ok: false; error: string };
+
+export async function recordInvoiceGroupPaymentAction(
+  input: z.infer<typeof recordPaymentSchema>,
+): Promise<RecordInvoiceGroupPaymentActionResult> {
+  await ensureAuthenticated();
+
+  const parsed = recordPaymentSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Data tidak valid.",
+    };
+  }
+
+  try {
+    const group = await recordInvoiceGroupPayment({
+      invoiceGroupId: parsed.data.invoiceGroupId,
+      paymentDate: new Date(parsed.data.paymentDate),
+      amount: parsed.data.amount,
+      notes: parsed.data.notes,
+    });
+
+    revalidatePath("/invoices");
+    revalidatePath(`/invoices/${parsed.data.invoiceGroupId}`);
+    revalidatePath("/sales");
+
+    return {
+      ok: true,
+      paidAmount: Number(group.paidAmount),
+      remainingAmount: Number(group.remainingAmount),
+      paymentStatus: group.paymentStatus,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Gagal mencatat pelunasan.",
+    };
+  }
 }
