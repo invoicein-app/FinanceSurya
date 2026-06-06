@@ -52,6 +52,7 @@ model Customer {
   id                 String              @id @default(cuid())
   name               String              @unique
   sales              Sale[]
+  invoiceGroups      InvoiceGroup[]
   customerPriceLists CustomerPriceList[]
   veneerTemplates    VeneerTemplate[]
   createdAt          DateTime            @default(now())
@@ -151,20 +152,50 @@ model WoodPurchaseItem {
 }
 
 model Sale {
-  id           String     @id @default(cuid())
-  clientRequestId String? @unique
-  customerId   String?
-  saleDate     DateTime
-  customerName String?
-  note         String?
-  grandTotal   Decimal    @db.Decimal(14, 2)
-  customer     Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  saleItems    SaleItem[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id              String        @id @default(cuid())
+  clientRequestId String?       @unique
+  customerId      String?
+  invoiceGroupId  String?
+  saleDate        DateTime
+  customerName    String?
+  note            String?
+  grandTotal      Decimal       @db.Decimal(14, 2)
+  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  invoiceGroup    InvoiceGroup? @relation(fields: [invoiceGroupId], references: [id], onDelete: SetNull)
+  saleItems       SaleItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([customerId])
   @@index([saleDate])
+  @@index([invoiceGroupId])
+}
+
+/// Grup tagihan manual — beberapa penjualan customer yang sama digabung dengan kode invoice eksternal.
+model InvoiceGroup {
+  id                String               @id @default(cuid())
+  customerId        String
+  manualInvoiceCode String               @unique
+  invoiceDate       DateTime
+  totalAmount       Decimal              @db.Decimal(14, 2)
+  paidAmount        Decimal              @default(0) @db.Decimal(14, 2)
+  remainingAmount   Decimal              @db.Decimal(14, 2)
+  paymentStatus     InvoicePaymentStatus @default(unpaid)
+  notes             String?
+  customer          Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sales             Sale[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([customerId])
+  @@index([invoiceDate])
+  @@index([paymentStatus])
+}
+
+enum InvoicePaymentStatus {
+  unpaid
+  partial
+  paid
 }
 
 model SaleItem {

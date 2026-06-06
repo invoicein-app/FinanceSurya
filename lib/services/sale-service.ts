@@ -4,6 +4,7 @@ import { collectCustomerPriceListUpsertOps } from "@/lib/pricing/upsert-customer
 import { buildVeneerItemDescription } from "@/lib/sales/item-description";
 import { parseThicknessMmForStock } from "@/lib/sales/thickness-mm";
 import { collectVeneerTemplateSaleSqlOps } from "@/lib/services/veneer-template-service";
+import { recalculateInvoiceGroupTotals } from "@/lib/services/invoice-group-service";
 import { prisma } from "@/lib/prisma";
 
 /** Karakter NUL tidak valid di teks Postgres dan bisa memicu error protokol (08P01). */
@@ -69,6 +70,13 @@ export async function getSales() {
     orderBy: { saleDate: "desc" },
     include: {
       customer: true,
+      invoiceGroup: {
+        select: {
+          id: true,
+          manualInvoiceCode: true,
+          paymentStatus: true,
+        },
+      },
       saleItems: {
         include: { sources: true },
       },
@@ -94,6 +102,8 @@ export async function deleteSale(id: string) {
   if (!sale) {
     throw new Error("Transaksi penjualan tidak ditemukan.");
   }
+
+  const invoiceGroupId = sale.invoiceGroupId;
 
   const rollbackThick = new Map<string, number>();
   const rollbackLegacy = new Map<string, { qty: number; volume: number }>();
@@ -132,6 +142,15 @@ export async function deleteSale(id: string) {
   }
 
   await prisma.sale.delete({ where: { id: trimmedId } });
+
+  if (invoiceGroupId) {
+    const remaining = await prisma.sale.count({ where: { invoiceGroupId } });
+    if (remaining === 0) {
+      await prisma.invoiceGroup.delete({ where: { id: invoiceGroupId } });
+    } else {
+      await recalculateInvoiceGroupTotals(invoiceGroupId);
+    }
+  }
 }
 
 export async function getSaleById(id: string) {
@@ -139,6 +158,13 @@ export async function getSaleById(id: string) {
     where: { id },
     include: {
       customer: true,
+      invoiceGroup: {
+        select: {
+          id: true,
+          manualInvoiceCode: true,
+          paymentStatus: true,
+        },
+      },
       saleItems: {
         orderBy: { createdAt: "asc" },
         include: {

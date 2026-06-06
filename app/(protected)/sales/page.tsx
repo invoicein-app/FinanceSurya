@@ -13,11 +13,15 @@ export default async function SalesPage() {
   const rows = sales.map((sale) => ({
     id: sale.id,
     saleDate: sale.saleDate.toISOString(),
+    customerId: sale.customerId,
     customerLabel: sale.customer?.name ?? sale.customerName ?? "-",
     itemCount: sale.saleItems.length,
     sourceCount: sale.saleItems.reduce((sum, item) => sum + item.sources.length, 0),
     firstItemName: sale.saleItems[0]?.itemName || "-",
     grandTotal: Number(sale.grandTotal),
+    invoiceGroupId: sale.invoiceGroup?.id ?? null,
+    invoiceGroupCode: sale.invoiceGroup?.manualInvoiceCode ?? null,
+    invoiceGroupPaymentStatus: sale.invoiceGroup?.paymentStatus ?? null,
   }));
 
   return (
@@ -43,7 +47,7 @@ export default async function SalesPage() {
     >
       <DataListCard
         title="Daftar Transaksi"
-        description="Riwayat penjualan veneer dengan alokasi partai."
+        description="Riwayat penjualan veneer dengan alokasi partai. Centang beberapa baris customer yang sama lalu gabungkan ke invoice manual."
       >
         <SalesTable initialRows={rows} />
       </DataListCard>

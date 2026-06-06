@@ -16,6 +16,7 @@ import {
   TABLE_HEAD_CLASS,
   TABLE_HEADER_ROW_CLASS,
 } from "@/components/layout/app-theme-ui";
+import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 import { SaleDeleteButton } from "@/components/sales/sale-delete-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +82,24 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
             <p className="mt-1 font-medium">
               {new Date(sale.saleDate).toLocaleDateString("id-ID")}
             </p>
+          </div>
+          <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 sm:col-span-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Invoice Group
+            </p>
+            {sale.invoiceGroup ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/invoices/${sale.invoiceGroup.id}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {sale.invoiceGroup.manualInvoiceCode}
+                </Link>
+                <InvoiceStatusBadge status={sale.invoiceGroup.paymentStatus} />
+              </div>
+            ) : (
+              <p className="mt-1 text-muted-foreground">Belum masuk invoice group</p>
+            )}
           </div>
           <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 sm:col-span-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

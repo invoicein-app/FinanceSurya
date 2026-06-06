@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  FileStack,
   LayoutDashboard,
   LogOut,
   Package,
@@ -47,6 +48,12 @@ const navItems: NavItem[] = [
       (p.startsWith("/sales/") && !p.startsWith("/sales/new")),
   },
   { href: "/sales/new", label: "Input Penjualan", icon: PlusCircle },
+  {
+    href: "/invoices",
+    label: "Invoice Group",
+    icon: FileStack,
+    match: (p) => p === "/invoices" || p.startsWith("/invoices/"),
+  },
   { href: "/price-list", label: "Price List", icon: Tag },
   { href: "/stocks", label: "Stok Sisa", icon: Warehouse },
 ];
