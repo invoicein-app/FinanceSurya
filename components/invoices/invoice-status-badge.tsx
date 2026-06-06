@@ -1,14 +1,13 @@
-import type { InvoicePaymentStatus } from "@prisma/client";
-
 import { Badge } from "@/components/ui/badge";
 import {
   paymentStatusBadgeClass,
   paymentStatusLabel,
-} from "@/lib/services/invoice-group-service";
+  type InvoicePaymentStatusValue,
+} from "@/lib/invoice-group-utils";
 import { cn } from "@/lib/utils";
 
 type InvoiceStatusBadgeProps = {
-  status: InvoicePaymentStatus | string;
+  status: InvoicePaymentStatusValue | string;
   className?: string;
 };
 
