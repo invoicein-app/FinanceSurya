@@ -48,11 +48,11 @@ export function InvoicePaymentModal({
       return;
     }
     setPaymentDate(new Date().toISOString().slice(0, 10));
-    setAmount("0");
+    setAmount(String(Math.max(0, Math.round(target.remainingAmount))));
     setNotes("");
     setErrorMessage(null);
     setSubmitting(false);
-  }, [open, target?.id]);
+  }, [open, target?.id, target?.remainingAmount]);
 
   if (!open || !target) {
     return null;
