@@ -43,6 +43,7 @@ export type SaleListRow = {
   itemCount: number;
   sourceCount: number;
   firstItemName: string;
+  batchCodes: string[];
   grandTotal: number;
   invoiceGroupId: string | null;
   invoiceGroupCode: string | null;
@@ -262,6 +263,7 @@ export function SalesTable({ initialRows }: SalesTableProps) {
               <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
               <TableHead className={TABLE_HEAD_CLASS}>Customer</TableHead>
               <TableHead className={TABLE_HEAD_CLASS}>Invoice</TableHead>
+              <TableHead className={TABLE_HEAD_CLASS}>Kode Partai</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-center")}>Jumlah Item</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-center")}>
                 Jumlah Sumber Partai
@@ -274,7 +276,7 @@ export function SalesTable({ initialRows }: SalesTableProps) {
           <TableBody>
             {pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className={TABLE_EMPTY_CELL}>
+                <TableCell colSpan={10} className={TABLE_EMPTY_CELL}>
                   Belum ada transaksi penjualan.
                 </TableCell>
               </TableRow>
@@ -338,6 +340,22 @@ export function SalesTable({ initialRows }: SalesTableProps) {
                         </div>
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className={cn(TABLE_CELL_DEFAULT, "max-w-[200px] whitespace-normal")}>
+                      {sale.batchCodes.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1" title={sale.batchCodes.join(", ")}>
+                          {sale.batchCodes.map((code) => (
+                            <span
+                              key={code}
+                              className="inline-flex rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs font-medium text-foreground"
+                            >
+                              {code}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className={cn(TABLE_CELL_NUMERIC, "text-center")}>

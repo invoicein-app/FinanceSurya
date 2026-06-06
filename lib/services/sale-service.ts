@@ -78,7 +78,22 @@ export async function getSales() {
         },
       },
       saleItems: {
-        include: { sources: true },
+        include: {
+          sources: {
+            include: {
+              purchaseItem: {
+                include: {
+                  purchase: { select: { batchCode: true } },
+                },
+              },
+              thicknessStock: {
+                include: {
+                  purchase: { select: { batchCode: true } },
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
