@@ -1,5 +1,6 @@
 "use client";
 
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 
 type FormAction = (formData: FormData) => void | Promise<void>;
@@ -43,6 +44,9 @@ export function useFormSubmitOnce({
       try {
         await action(new FormData(event.currentTarget));
       } catch (error) {
+        if (isRedirectError(error)) {
+          throw error;
+        }
         isSubmittingRef.current = false;
         setIsSubmitting(false);
         onError?.(error);
