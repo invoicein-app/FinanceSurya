@@ -57,20 +57,29 @@ export async function updateSaleAction(id: string, formData: FormData) {
   await updateSale(id, payload);
 
   revalidatePath("/sales");
+  revalidatePath("/invoices");
   revalidatePath("/price-list");
   revalidatePath(`/sales/${id}`);
   revalidatePath(`/sales/${id}/edit`);
   revalidatePath("/");
   revalidatePath("/stocks");
+
+  redirect(`/sales/${id}`);
 }
 
 function parseSaleForm(formData: FormData) {
-  const mainPayload = saleSchema.parse({
+  const mainResult = saleSchema.safeParse({
     saleDate: formData.get("saleDate"),
     customerId: formData.get("customerId"),
     clientRequestId: formData.get("clientRequestId"),
     note: formData.get("note"),
   });
+
+  if (!mainResult.success) {
+    throw new Error(mainResult.error.issues[0]?.message ?? "Data transaksi tidak valid.");
+  }
+
+  const mainPayload = mainResult.data;
 
   const rawItems = String(formData.get("itemsPayload") ?? "[]");
   const parsedItems = JSON.parse(rawItems) as CreateSaleItemInput[];

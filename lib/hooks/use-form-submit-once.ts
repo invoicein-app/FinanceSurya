@@ -9,6 +9,7 @@ type UseFormSubmitOnceOptions = {
   /** Return false untuk membatalkan submit (validasi gagal). */
   beforeSubmit?: (event: FormEvent<HTMLFormElement>) => boolean;
   submittingLabel?: string;
+  onError?: (error: unknown) => void;
 };
 
 /**
@@ -19,6 +20,7 @@ export function useFormSubmitOnce({
   action,
   beforeSubmit,
   submittingLabel = "Menyimpan...",
+  onError,
 }: UseFormSubmitOnceOptions) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -40,12 +42,13 @@ export function useFormSubmitOnce({
 
       try {
         await action(new FormData(event.currentTarget));
-      } catch {
+      } catch (error) {
         isSubmittingRef.current = false;
         setIsSubmitting(false);
+        onError?.(error);
       }
     },
-    [action, beforeSubmit],
+    [action, beforeSubmit, onError],
   );
 
   return { isSubmitting, submittingLabel, handleSubmit };

@@ -387,6 +387,15 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
     throw new Error("Minimal satu item penjualan wajib diisi.");
   }
 
+  const existingSale = await prisma.sale.findUnique({
+    where: { id },
+    select: { invoiceGroupId: true },
+  });
+
+  if (!existingSale) {
+    throw new Error("Transaksi penjualan tidak ditemukan.");
+  }
+
   const normalizedItems = normalizeSaleItems(input.items);
   const grandTotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
 
@@ -543,6 +552,10 @@ export async function updateSale(id: string, input: UpdateSaleInput) {
 
   for (const op of veneerOps) {
     await op;
+  }
+
+  if (existingSale.invoiceGroupId) {
+    await recalculateInvoiceGroupTotals(existingSale.invoiceGroupId);
   }
 
   return prisma.sale.findUnique({

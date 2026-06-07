@@ -128,6 +128,7 @@ export function SaleForm({
   const [customerTemplates, setCustomerTemplates] = useState<VeneerTemplateRow[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [allocationError, setAllocationError] = useState<string | undefined>();
+  const [submitError, setSubmitError] = useState<string | undefined>();
   const editTemplateMatchedRef = useRef(false);
   const initialCustomerIdRef = useRef(initialValues?.customerId ?? "");
 
@@ -420,6 +421,7 @@ export function SaleForm({
     setCustomerId(value);
     setCustomerFieldError(undefined);
     setAllocationError(undefined);
+    setSubmitError(undefined);
     setPriceListHints({});
     setCustomerTemplates([]);
     editTemplateMatchedRef.current = false;
@@ -487,6 +489,13 @@ export function SaleForm({
     useFormSubmitOnce({
       action,
       beforeSubmit: validateBeforeSubmit,
+      onError: (error) => {
+        if (error instanceof Error) {
+          setSubmitError(error.message);
+          return;
+        }
+        setSubmitError("Gagal menyimpan transaksi. Periksa data lalu coba lagi.");
+      },
     });
 
   const tryAutoFillExactPrice = (itemId: string) => {
@@ -968,6 +977,12 @@ export function SaleForm({
 
       {allocationError ? (
         <p className="text-sm text-destructive">{allocationError}</p>
+      ) : null}
+
+      {submitError ? (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {submitError}
+        </p>
       ) : null}
 
       <Button type="submit" disabled={isSubmitting}>
