@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { prisma } from "@/lib/prisma";
+import { formatPartaiLabel } from "@/lib/partai/format-partai-label";
 import { cn } from "@/lib/utils";
 
 export default async function Home() {
@@ -119,7 +120,7 @@ export default async function Home() {
             <TableHeader>
               <TableRow className={TABLE_HEADER_ROW_CLASS}>
                 <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
-                <TableHead className={TABLE_HEAD_CLASS}>Batch</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Partai</TableHead>
                 <TableHead className={TABLE_HEAD_CLASS}>Vendor</TableHead>
                 <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Grand Total</TableHead>
               </TableRow>
@@ -143,7 +144,7 @@ export default async function Home() {
                     </TableCell>
                     <TableCell className={TABLE_CELL_PRIMARY}>
                       <DataTableLink href={`/purchases/${purchase.id}`}>
-                        {purchase.batchCode}
+                        {formatPartaiLabel(purchase)}
                       </DataTableLink>
                     </TableCell>
                     <TableCell className={TABLE_CELL_VENDOR}>{purchase.vendor.name}</TableCell>

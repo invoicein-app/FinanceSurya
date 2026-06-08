@@ -28,6 +28,8 @@ type PurchaseFormValues = {
   vendorId: string;
   purchaseDate: string;
   batchCode: string;
+  batchYear: number;
+  woodSpecies: string;
   documentNumber: string;
   note: string;
   bpCost: number;
@@ -78,6 +80,10 @@ export function PurchaseForm({
   const [vendorId, setVendorId] = useState(initialValues?.vendorId ?? "");
   const [purchaseDate, setPurchaseDate] = useState(initialValues?.purchaseDate ?? "");
   const [batchCode, setBatchCode] = useState(initialValues?.batchCode ?? "");
+  const [batchYear, setBatchYear] = useState(
+    initialValues?.batchYear ?? new Date().getFullYear(),
+  );
+  const [woodSpecies, setWoodSpecies] = useState(initialValues?.woodSpecies ?? "");
   const [documentNumber, setDocumentNumber] = useState(
     initialValues?.documentNumber ?? "",
   );
@@ -151,15 +157,42 @@ export function PurchaseForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="batchCode">Kode Partai / Truk</Label>
+          <Label htmlFor="batchCode">Kode Partai</Label>
           <Input
             id="batchCode"
             name="batchCode"
             value={batchCode}
             onChange={(event) => setBatchCode(event.target.value)}
-            placeholder="TRUK-001-APR26"
+            placeholder="P12"
             required
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="batchYear">Tahun Partai</Label>
+          <Input
+            id="batchYear"
+            name="batchYear"
+            type="number"
+            min={1900}
+            max={2100}
+            value={batchYear}
+            onChange={(event) => setBatchYear(Number(event.target.value))}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="woodSpecies">Jenis Kayu</Label>
+          <Input
+            id="woodSpecies"
+            name="woodSpecies"
+            value={woodSpecies}
+            onChange={(event) => setWoodSpecies(event.target.value)}
+            placeholder="Jati, Meranti, …"
+          />
+          <p className="text-xs text-muted-foreground">
+            Identitas tampilan: {batchCode.trim() || "—"} - {batchYear} -{" "}
+            {woodSpecies.trim() || "Tanpa Jenis Kayu"}
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="documentNumber">Nomor Dokumen</Label>

@@ -10,6 +10,7 @@ import { SaleForm } from "@/components/sales/sale-form";
 import { getCustomers } from "@/lib/services/customer-service";
 import { getSaleById } from "@/lib/services/sale-service";
 import { getThicknessStockOptionsForSaleForm } from "@/lib/services/wood-purchase-service";
+import { formatPartaiKaplingSource } from "@/lib/partai/format-partai-label";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +109,11 @@ export default async function EditSalePage({ params }: EditSalePageProps) {
                         thicknessStockId: source.thicknessStockId ?? "",
                         purchaseItemId: source.purchaseItemId ?? "",
                         legacyLabel: source.purchaseItem
-                          ? `${source.purchaseItem.purchase.batchCode} / Kapling ${source.purchaseItem.noKapling}`
+                          ? formatPartaiKaplingSource(
+                              source.purchaseItem.purchase,
+                              source.purchaseItem.noKapling,
+                              Number(source.qtyTaken),
+                            )
                           : undefined,
                         qtyTaken: source.qtyTaken.toString(),
                         volumeTaken: source.volumeTaken.toString(),

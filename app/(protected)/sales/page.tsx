@@ -6,7 +6,7 @@ import { DataListCard } from "@/components/layout/data-list-card";
 import { SalesTable } from "@/components/sales/sales-table";
 import { Button } from "@/components/ui/button";
 import { getSales } from "@/lib/services/sale-service";
-import { collectSaleBatchCodes } from "@/lib/sales/sale-batch-codes";
+import { collectSalePartaiLabels } from "@/lib/sales/sale-batch-codes";
 
 export default async function SalesPage() {
   const sales = await getSales();
@@ -19,7 +19,7 @@ export default async function SalesPage() {
     itemCount: sale.saleItems.length,
     sourceCount: sale.saleItems.reduce((sum, item) => sum + item.sources.length, 0),
     firstItemName: sale.saleItems[0]?.itemName || "-",
-    batchCodes: collectSaleBatchCodes(sale),
+    partaiLabels: collectSalePartaiLabels(sale),
     grandTotal: Number(sale.grandTotal),
     invoiceGroupId: sale.invoiceGroup?.id ?? null,
     invoiceGroupCode: sale.invoiceGroup?.manualInvoiceCode ?? null,

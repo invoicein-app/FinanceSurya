@@ -4,12 +4,19 @@ import {
   KpiTile,
   partaiDetailCardClass,
 } from "@/components/purchases/partai-detail-ui";
+import {
+  formatPartaiLabel,
+  resolvePartaiYear,
+  resolveWoodSpecies,
+} from "@/lib/partai/format-partai-label";
 import type { PartaiPurchaseAnalytics } from "@/lib/services/wood-purchase-service";
 
 type PartaiPurchaseHeaderCardProps = {
   purchase: {
     purchaseDate: Date;
     batchCode: string;
+    batchYear: number | null;
+    woodSpecies: string | null;
     documentNumber: string | null;
     note: string | null;
     bpCost: unknown;
@@ -26,6 +33,7 @@ export function PartaiPurchaseHeaderCard({
   purchase,
   purchaseAnalytics,
 }: PartaiPurchaseHeaderCardProps) {
+  const partaiLabel = formatPartaiLabel(purchase);
   const costRows = [
     { label: "BP Cost", value: Number(purchase.bpCost) },
     { label: "Cutting Cost", value: Number(purchase.cuttingCost) },
@@ -36,7 +44,7 @@ export function PartaiPurchaseHeaderCard({
   return (
     <Card className={partaiDetailCardClass}>
       <CardHeader className="border-b border-border/50">
-        <CardTitle className="text-lg">Header pembelian</CardTitle>
+        <CardTitle className="text-lg">{partaiLabel}</CardTitle>
         <CardDescription>
           {purchase.batchCode} · {purchase.vendor.name}
         </CardDescription>
@@ -51,7 +59,10 @@ export function PartaiPurchaseHeaderCard({
               year: "numeric",
             })}
           />
-          <InfoField label="Batch / truk" value={purchase.batchCode} />
+          <InfoField label="Identitas partai" value={partaiLabel} />
+          <InfoField label="Kode partai" value={purchase.batchCode} />
+          <InfoField label="Tahun partai" value={resolvePartaiYear(purchase)} />
+          <InfoField label="Jenis kayu" value={resolveWoodSpecies(purchase.woodSpecies)} />
           <InfoField label="Nomor dokumen" value={purchase.documentNumber || "—"} />
           <InfoField label="Catatan" value={purchase.note || "—"} />
         </dl>

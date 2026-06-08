@@ -16,6 +16,7 @@ import {
   getPartaiTransferOptions,
   getWoodPurchaseById,
 } from "@/lib/services/wood-purchase-service";
+import { formatPartaiLabel } from "@/lib/partai/format-partai-label";
 
 type PurchaseDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -35,10 +36,11 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
 
   const purchaseAnalytics = computePartaiPurchaseAnalytics(purchase);
   const veneerAnalytics = aggregatePartaiVeneerOutputAnalytics(relatedSales.rows);
+  const partaiLabel = formatPartaiLabel(purchase);
 
   return (
     <AppListPage
-      title={purchase.batchCode}
+      title={partaiLabel}
       description={`Partai pembelian · ${purchase.vendor.name}`}
       icon={Package}
       actions={
@@ -83,7 +85,7 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
 
         <PartaiRelatedSalesSection
           currentPurchaseId={purchase.id}
-          currentBatchCode={purchase.batchCode}
+          currentPartaiLabel={partaiLabel}
           data={relatedSales}
           transferOptions={transferOptions}
         />

@@ -133,10 +133,10 @@ export function SaleForm({
   const initialCustomerIdRef = useRef(initialValues?.customerId ?? "");
 
   const partaiOptions = useMemo(() => {
-    const map = new Map<string, { id: string; batchCode: string }>();
+    const map = new Map<string, { id: string; partaiLabel: string }>();
     for (const row of thicknessStockOptions) {
       if (!map.has(row.purchaseId)) {
-        map.set(row.purchaseId, { id: row.purchaseId, batchCode: row.batchCode });
+        map.set(row.purchaseId, { id: row.purchaseId, partaiLabel: row.partaiLabel });
       }
     }
     return [...map.values()];
@@ -891,7 +891,7 @@ export function SaleForm({
                                 <option value="">-- Pilih partai --</option>
                                 {partaiOptions.map((p) => (
                                   <option key={p.id} value={p.id}>
-                                    {p.batchCode}
+                                    {p.partaiLabel}
                                   </option>
                                 ))}
                               </select>

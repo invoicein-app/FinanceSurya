@@ -50,7 +50,7 @@ import type {
 
 type PartaiRelatedSalesSectionProps = {
   currentPurchaseId: string;
-  currentBatchCode: string;
+  currentPartaiLabel: string;
   data: PartaiRelatedSaleUsagesResult;
   transferOptions: PartaiTransferOption[];
 };
@@ -63,7 +63,7 @@ function thicknessDisplay(label: string): string {
 
 export function PartaiRelatedSalesSection({
   currentPurchaseId,
-  currentBatchCode,
+  currentPartaiLabel,
   data,
   transferOptions,
 }: PartaiRelatedSalesSectionProps) {
@@ -414,7 +414,7 @@ export function PartaiRelatedSalesSection({
               </div>
               <div className="flex justify-between gap-4 border-t pt-2">
                 <dt className="text-muted-foreground">Partai saat ini</dt>
-                <dd className="text-right font-medium">{currentBatchCode}</dd>
+                <dd className="text-right font-medium">{currentPartaiLabel}</dd>
               </div>
             </dl>
 
@@ -430,7 +430,7 @@ export function PartaiRelatedSalesSection({
                 <option value="">— Pilih partai —</option>
                 {transferOptions.map((opt) => (
                   <option key={opt.id} value={opt.id}>
-                    {opt.batchCode} — {opt.vendorName}
+                    {opt.displayLabel} — {opt.vendorName}
                   </option>
                 ))}
               </select>
@@ -440,7 +440,7 @@ export function PartaiRelatedSalesSection({
               <div className="mt-3 rounded-xl border border-border/60 bg-muted/25 px-3 py-3 text-sm">
                 <p>
                   <span className="text-muted-foreground">Partai tujuan:</span>{" "}
-                  <strong>{selectedOption.batchCode}</strong> ({selectedOption.vendorName})
+                  <strong>{selectedOption.displayLabel}</strong> ({selectedOption.vendorName})
                 </p>
                 {previewLoading ? (
                   <p className="mt-2 text-muted-foreground">Memuat stok tujuan…</p>

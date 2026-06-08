@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { formatPartaiLabel, type PartaiLabelInput } from "@/lib/partai/format-partai-label";
 import { prisma } from "@/lib/prisma";
 import { parseThicknessMmForStock, thicknessMmMatches } from "@/lib/sales/thickness-mm";
 
@@ -9,8 +10,10 @@ export const DEFAULT_PARTAI_THICKNESS_MM = ["0.6", "1.2"] as const;
 /** Satuan default untuk stok veneer per ketebalan (qty mengacu ke unit ini). */
 export const DEFAULT_THICKNESS_STOCK_UNIT = "m2";
 
+type WoodPurchaseDb = Pick<Prisma.TransactionClient, "woodPurchaseThicknessStock">;
+
 async function ensureDefaultThicknessStockRows(
-  tx: Prisma.TransactionClient,
+  tx: WoodPurchaseDb,
   purchaseId: string,
 ) {
   await tx.woodPurchaseThicknessStock.createMany({
@@ -40,6 +43,8 @@ export type CreateWoodPurchaseInput = {
   vendorId: string;
   purchaseDate: Date;
   batchCode: string;
+  batchYear?: number | null;
+  woodSpecies?: string | null;
   documentNumber?: string;
   note?: string;
   bpCost: number;
@@ -188,14 +193,74 @@ export function aggregatePartaiVeneerOutputAnalytics(
   };
 }
 
-export async function getWoodPurchases() {
+export type WoodPurchaseListFilters = {
+  batchYear?: number;
+  q?: string;
+};
+
+export function partaiLabelFromPurchase(
+  purchase: PartaiLabelInput & { purchaseDate?: Date | string | null },
+): string {
+  return formatPartaiLabel(purchase);
+}
+
+export type WoodPurchaseListRow = Awaited<ReturnType<typeof fetchAllWoodPurchases>>[number];
+
+async function fetchAllWoodPurchases() {
   return prisma.woodPurchase.findMany({
-    orderBy: { purchaseDate: "desc" },
+    orderBy: [{ batchYear: "desc" }, { purchaseDate: "desc" }, { batchCode: "asc" }],
     include: {
       vendor: true,
       items: true,
     },
   });
+}
+
+export function filterWoodPurchasesList(
+  rows: WoodPurchaseListRow[],
+  filters?: WoodPurchaseListFilters,
+): WoodPurchaseListRow[] {
+  let result = rows;
+
+  if (filters?.batchYear != null && Number.isFinite(filters.batchYear)) {
+    const year = filters.batchYear;
+    result = result.filter((row) => {
+      if (row.batchYear === year) {
+        return true;
+      }
+      if (row.batchYear == null) {
+        return new Date(row.purchaseDate).getFullYear() === year;
+      }
+      return false;
+    });
+  }
+
+  const q = filters?.q?.trim().toLowerCase();
+  if (q) {
+    result = result.filter((row) => {
+      const haystack = [
+        row.batchCode,
+        row.batchYear?.toString(),
+        row.woodSpecies,
+        row.vendor.name,
+        formatPartaiLabel(row),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+
+  return result;
+}
+
+export async function getWoodPurchases(filters?: WoodPurchaseListFilters) {
+  const rows = await fetchAllWoodPurchases();
+  if (!filters?.batchYear && !filters?.q?.trim()) {
+    return rows;
+  }
+  return filterWoodPurchasesList(rows, filters);
 }
 
 export async function getWoodPurchaseById(id: string) {
@@ -377,7 +442,11 @@ export async function getPartaiRelatedSaleUsages(
 export type PartaiTransferOption = {
   id: string;
   batchCode: string;
+  batchYear: number | null;
+  woodSpecies: string | null;
+  purchaseDate: Date;
   vendorName: string;
+  displayLabel: string;
 };
 
 export async function getPartaiTransferOptions(
@@ -385,13 +454,17 @@ export async function getPartaiTransferOptions(
 ): Promise<PartaiTransferOption[]> {
   const rows = await prisma.woodPurchase.findMany({
     where: { id: { not: excludePurchaseId } },
-    orderBy: [{ purchaseDate: "desc" }, { batchCode: "asc" }],
+    orderBy: [{ batchYear: "desc" }, { purchaseDate: "desc" }, { batchCode: "asc" }],
     include: { vendor: true },
   });
   return rows.map((row) => ({
     id: row.id,
     batchCode: row.batchCode,
+    batchYear: row.batchYear,
+    woodSpecies: row.woodSpecies,
+    purchaseDate: row.purchaseDate,
     vendorName: row.vendor.name,
+    displayLabel: formatPartaiLabel(row),
   }));
 }
 
@@ -414,7 +487,7 @@ export async function getPartaiTransferDestinationPreview(
 
   const purchase = await prisma.woodPurchase.findUnique({
     where: { id: destinationPurchaseId },
-    select: { batchCode: true },
+    select: { batchCode: true, batchYear: true, woodSpecies: true, purchaseDate: true },
   });
   if (!purchase) {
     return null;
@@ -430,7 +503,7 @@ export async function getPartaiTransferDestinationPreview(
   });
 
   return {
-    batchCode: purchase.batchCode,
+    batchCode: formatPartaiLabel(purchase),
     thicknessMm: normalizedMm,
     qtyAvailable: stockRow ? Number(stockRow.qtyAvailable) : 0,
     unit: stockRow?.unit ?? null,
@@ -531,7 +604,7 @@ export async function transferSaleAllocationToPartai(input: {
     const available = Number(destStock.qtyAvailable);
     if (available < qtyTaken) {
       throw new Error(
-        `Stok tidak cukup di partai tujuan "${destStock.purchase.batchCode}" untuk ${mmFromItem} mm: tersedia ${available.toLocaleString("id-ID")}, dibutuhkan ${qtyTaken.toLocaleString("id-ID")}.`,
+        `Stok tidak cukup di partai tujuan "${formatPartaiLabel(destStock.purchase)}" untuk ${mmFromItem} mm: tersedia ${available.toLocaleString("id-ID")}, dibutuhkan ${qtyTaken.toLocaleString("id-ID")}.`,
       );
     }
 
@@ -556,7 +629,7 @@ export async function transferSaleAllocationToPartai(input: {
       saleId: source.saleItem.saleId,
       fromPurchaseId,
       destinationPurchaseId,
-      destinationBatchCode: destStock.purchase.batchCode,
+      destinationBatchCode: formatPartaiLabel(destStock.purchase),
       thicknessMm: mmFromItem,
       qtyTransferred: qtyTaken,
     };
@@ -576,6 +649,10 @@ export type ThicknessStockOption = {
   id: string;
   purchaseId: string;
   batchCode: string;
+  batchYear: number | null;
+  woodSpecies: string | null;
+  purchaseDate: Date;
+  partaiLabel: string;
   thicknessMm: string;
   /** Sisa stok yang boleh diambil dari form (termasuk pengembalian virtual saat edit penjualan). */
   qtyAvailableEffective: number;
@@ -620,6 +697,10 @@ export async function getThicknessStockOptionsForSaleForm(options?: {
       id: row.id,
       purchaseId: row.purchaseId,
       batchCode: row.purchase.batchCode,
+      batchYear: row.purchase.batchYear,
+      woodSpecies: row.purchase.woodSpecies,
+      purchaseDate: row.purchase.purchaseDate,
+      partaiLabel: formatPartaiLabel(row.purchase),
       thicknessMm: row.thicknessMm.toString(),
       qtyAvailableEffective: base + bonus,
       unit: row.unit,
@@ -736,63 +817,64 @@ export async function createWoodPurchase(input: CreateWoodPurchaseInput) {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
-    let purchase;
-    try {
-      purchase = await tx.woodPurchase.create({
-        data: {
-          clientRequestId: requestKey || null,
-          vendorId: input.vendorId,
-          purchaseDate: input.purchaseDate,
-          batchCode: input.batchCode,
-          documentNumber: input.documentNumber,
-          note: input.note,
-          bpCost: input.bpCost.toString(),
-          cuttingCost: input.cuttingCost.toString(),
-          shippingCost: input.shippingCost.toString(),
-          woodPrice: input.woodPrice.toString(),
-          grandTotal: calculatedGrandTotal.toString(),
-        },
-      });
-    } catch (error) {
-      if (
-        requestKey &&
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        const existing = await prisma.woodPurchase.findUnique({
-          where: { clientRequestId: requestKey },
-        });
-        if (existing) {
-          return existing;
-        }
-      }
-      throw error;
-    }
-
-    await tx.woodPurchaseItem.createMany({
-      data: normalizedItems.map((item, index) => ({
-        purchaseId: purchase.id,
-        noKapling: `AUTO-${String(index + 1).padStart(3, "0")}`,
-        woodType: item.woodType,
-        sort: null,
-        length: toDecimalOrNull(item.length),
-        diameter: toDecimalOrNull(item.diameter),
-        logQty: item.logQty.toString(),
-        volume: item.volume.toString(),
-        mutu: item.mutu || null,
-        status: null,
-        amount: "0",
-        remainingQty: item.logQty.toString(),
-        remainingVolume: item.volume.toString(),
-        note: item.note || null,
-      })),
+  // Tanpa interactive $transaction — lebih cepat & stabil lewat Supabase pooler (hindari 08P01).
+  let purchase;
+  try {
+    purchase = await prisma.woodPurchase.create({
+      data: {
+        clientRequestId: requestKey || null,
+        vendorId: input.vendorId,
+        purchaseDate: input.purchaseDate,
+        batchCode: input.batchCode.trim(),
+        batchYear: input.batchYear ?? null,
+        woodSpecies: input.woodSpecies?.trim() || null,
+        documentNumber: input.documentNumber,
+        note: input.note,
+        bpCost: input.bpCost.toString(),
+        cuttingCost: input.cuttingCost.toString(),
+        shippingCost: input.shippingCost.toString(),
+        woodPrice: input.woodPrice.toString(),
+        grandTotal: calculatedGrandTotal.toString(),
+      },
     });
+  } catch (error) {
+    if (
+      requestKey &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existing = await prisma.woodPurchase.findUnique({
+        where: { clientRequestId: requestKey },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+    throw error;
+  }
 
-    await ensureDefaultThicknessStockRows(tx, purchase.id);
-
-    return purchase;
+  await prisma.woodPurchaseItem.createMany({
+    data: normalizedItems.map((item, index) => ({
+      purchaseId: purchase.id,
+      noKapling: `AUTO-${String(index + 1).padStart(3, "0")}`,
+      woodType: item.woodType,
+      sort: null,
+      length: toDecimalOrNull(item.length),
+      diameter: toDecimalOrNull(item.diameter),
+      logQty: item.logQty.toString(),
+      volume: item.volume.toString(),
+      mutu: item.mutu || null,
+      status: null,
+      amount: "0",
+      remainingQty: item.logQty.toString(),
+      remainingVolume: item.volume.toString(),
+      note: item.note || null,
+    })),
   });
+
+  await ensureDefaultThicknessStockRows(prisma, purchase.id);
+
+  return purchase;
 }
 
 export async function updateWoodPurchase(id: string, input: UpdateWoodPurchaseInput) {
@@ -805,7 +887,9 @@ export async function updateWoodPurchase(id: string, input: UpdateWoodPurchaseIn
       data: {
         vendorId: input.vendorId,
         purchaseDate: input.purchaseDate,
-        batchCode: input.batchCode,
+        batchCode: input.batchCode.trim(),
+        batchYear: input.batchYear ?? null,
+        woodSpecies: input.woodSpecies?.trim() || null,
         documentNumber: input.documentNumber,
         note: input.note,
         bpCost: input.bpCost.toString(),

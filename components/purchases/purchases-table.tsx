@@ -38,6 +38,9 @@ export type PurchaseListRow = {
   id: string;
   purchaseDate: string;
   batchCode: string;
+  batchYear: number | null;
+  woodSpecies: string | null;
+  partaiLabel: string;
   vendorName: string;
   itemCount: number;
   detailVolume: number;
@@ -50,7 +53,7 @@ type PurchasesTableProps = {
 
 type ConfirmTarget = {
   id: string;
-  batchCode: string;
+  partaiLabel: string;
 };
 
 export function PurchasesTable({ initialRows }: PurchasesTableProps) {
@@ -77,7 +80,7 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
       return;
     }
     setErrorMessage(null);
-    setConfirmTarget({ id: row.id, batchCode: row.batchCode });
+    setConfirmTarget({ id: row.id, partaiLabel: row.partaiLabel });
   };
 
   const closeDeleteConfirm = () => {
@@ -121,7 +124,9 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
           <TableHeader>
             <TableRow className={TABLE_HEADER_ROW_CLASS}>
               <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
-              <TableHead className={TABLE_HEAD_CLASS}>Kode Batch</TableHead>
+              <TableHead className={TABLE_HEAD_CLASS}>Identitas Partai</TableHead>
+              <TableHead className={TABLE_HEAD_CLASS}>Tahun</TableHead>
+              <TableHead className={TABLE_HEAD_CLASS}>Jenis Kayu</TableHead>
               <TableHead className={TABLE_HEAD_CLASS}>Vendor</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Jumlah item</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Volume</TableHead>
@@ -132,7 +137,7 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
           <TableBody>
             {pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className={TABLE_EMPTY_CELL}>
+                <TableCell colSpan={9} className={TABLE_EMPTY_CELL}>
                   Belum ada data partai pembelian.
                 </TableCell>
               </TableRow>
@@ -151,8 +156,15 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
                     </TableCell>
                     <TableCell className={TABLE_CELL_PRIMARY}>
                       <DataTableLink href={`/purchases/${purchase.id}`}>
-                        {purchase.batchCode}
+                        {purchase.partaiLabel}
                       </DataTableLink>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{purchase.batchCode}</p>
+                    </TableCell>
+                    <TableCell className={TABLE_CELL_NUMERIC}>
+                      {purchase.batchYear ?? "—"}
+                    </TableCell>
+                    <TableCell className={TABLE_CELL_VENDOR}>
+                      {purchase.woodSpecies?.trim() || "—"}
                     </TableCell>
                     <TableCell className={TABLE_CELL_VENDOR}>{purchase.vendorName}</TableCell>
                     <TableCell className={TABLE_CELL_NUMERIC}>{purchase.itemCount}</TableCell>
@@ -230,7 +242,7 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
             <p className="mt-2 text-sm text-muted-foreground">
               Yakin ingin menghapus data partai ini?
             </p>
-            <p className="mt-1 text-sm font-medium">{confirmTarget.batchCode}</p>
+            <p className="mt-1 text-sm font-medium">{confirmTarget.partaiLabel}</p>
 
             {errorMessage ? (
               <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

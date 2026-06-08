@@ -28,6 +28,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getSaleById } from "@/lib/services/sale-service";
+import {
+  formatPartaiKaplingSource,
+  formatPartaiThicknessSource,
+} from "@/lib/partai/format-partai-label";
 import { cn } from "@/lib/utils";
 
 type SaleDetailPageProps = {
@@ -153,16 +157,21 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
                             <p key={source.id} className="text-xs">
                               {source.thicknessStock ? (
                                 <>
-                                  {source.thicknessStock.purchase.batchCode} — ketebalan{" "}
-                                  {source.thicknessStock.thicknessMm.toString()} mm — qty{" "}
-                                  {Number(source.qtyTaken).toLocaleString("id-ID")}
+                                  {formatPartaiThicknessSource(
+                                    source.thicknessStock.purchase,
+                                    source.thicknessStock.thicknessMm,
+                                    Number(source.qtyTaken),
+                                  )}
                                 </>
                               ) : source.purchaseItem ? (
                                 <>
-                                  {source.purchaseItem.purchase.batchCode} / Kapling{" "}
-                                  {source.purchaseItem.noKapling} (alokasi lama) — qty{" "}
-                                  {Number(source.qtyTaken).toLocaleString("id-ID")} — vol{" "}
-                                  {Number(source.volumeTaken).toLocaleString("id-ID")}
+                                  {formatPartaiKaplingSource(
+                                    source.purchaseItem.purchase,
+                                    source.purchaseItem.noKapling,
+                                    Number(source.qtyTaken),
+                                    Number(source.volumeTaken),
+                                  )}{" "}
+                                  (alokasi lama)
                                 </>
                               ) : (
                                 <span className="text-muted-foreground">Sumber tidak lengkap</span>

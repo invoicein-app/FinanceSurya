@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getBatchStock, getThicknessStockLedger } from "@/lib/services/stock-service";
+import { formatPartaiLabel } from "@/lib/partai/format-partai-label";
 import { cn } from "@/lib/utils";
 
 export default async function StocksPage() {
@@ -61,7 +62,7 @@ export default async function StocksPage() {
             <Table>
               <TableHeader>
                 <TableRow className={TABLE_HEADER_ROW_CLASS}>
-                  <TableHead className={TABLE_HEAD_CLASS}>Batch</TableHead>
+                  <TableHead className={TABLE_HEAD_CLASS}>Partai</TableHead>
                   <TableHead className={TABLE_HEAD_CLASS}>Vendor</TableHead>
                   <TableHead className={TABLE_HEAD_CLASS}>Ketebalan (mm)</TableHead>
                   <TableHead className={cn(TABLE_HEAD_CLASS, "text-right")}>Sisa qty</TableHead>
@@ -76,7 +77,7 @@ export default async function StocksPage() {
                     <TableRow key={row.id} className={TABLE_BODY_ROW_CLASS}>
                       <TableCell className={TABLE_CELL_PRIMARY}>
                         <DataTableLink href={`/purchases/${row.purchase.id}`}>
-                          {row.purchase.batchCode}
+                          {formatPartaiLabel(row.purchase)}
                         </DataTableLink>
                       </TableCell>
                       <TableCell className={TABLE_CELL_VENDOR}>{row.purchase.vendor.name}</TableCell>
@@ -109,7 +110,7 @@ export default async function StocksPage() {
           <Table>
             <TableHeader>
               <TableRow className={TABLE_HEADER_ROW_CLASS}>
-                <TableHead className={TABLE_HEAD_CLASS}>Batch</TableHead>
+                <TableHead className={TABLE_HEAD_CLASS}>Partai</TableHead>
                 <TableHead className={TABLE_HEAD_CLASS}>Vendor</TableHead>
                 <TableHead className={TABLE_HEAD_CLASS}>No Kapling</TableHead>
                 <TableHead className={TABLE_HEAD_CLASS}>Jenis Kayu</TableHead>
@@ -134,7 +135,9 @@ export default async function StocksPage() {
 
                 return (
                   <TableRow key={item.id} className={TABLE_BODY_ROW_CLASS}>
-                    <TableCell className={TABLE_CELL_PRIMARY}>{item.purchase.batchCode}</TableCell>
+                    <TableCell className={TABLE_CELL_PRIMARY}>
+                      {formatPartaiLabel(item.purchase)}
+                    </TableCell>
                     <TableCell className={TABLE_CELL_VENDOR}>{item.purchase.vendor.name}</TableCell>
                     <TableCell className={TABLE_CELL_DEFAULT}>{item.noKapling}</TableCell>
                     <TableCell className={TABLE_CELL_DEFAULT}>{item.woodType}</TableCell>

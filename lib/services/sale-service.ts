@@ -83,12 +83,26 @@ export async function getSales() {
             include: {
               purchaseItem: {
                 include: {
-                  purchase: { select: { batchCode: true } },
+                  purchase: {
+                    select: {
+                      batchCode: true,
+                      batchYear: true,
+                      woodSpecies: true,
+                      purchaseDate: true,
+                    },
+                  },
                 },
               },
               thicknessStock: {
                 include: {
-                  purchase: { select: { batchCode: true } },
+                  purchase: {
+                    select: {
+                      batchCode: true,
+                      batchYear: true,
+                      woodSpecies: true,
+                      purchaseDate: true,
+                    },
+                  },
                 },
               },
             },

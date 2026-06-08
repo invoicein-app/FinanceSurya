@@ -1,25 +1,35 @@
+import { formatPartaiLabel, type PartaiLabelInput } from "@/lib/partai/format-partai-label";
+
+type SaleBatchPurchase = PartaiLabelInput & {
+  purchaseDate?: Date | string | null;
+};
+
 type SaleBatchSource = {
-  thicknessStock?: { purchase: { batchCode: string } } | null;
-  purchaseItem?: { purchase: { batchCode: string } } | null;
+  thicknessStock?: { purchase: SaleBatchPurchase } | null;
+  purchaseItem?: { purchase: SaleBatchPurchase } | null;
 };
 
 type SaleWithBatchSources = {
   saleItems: Array<{ sources: SaleBatchSource[] }>;
 };
 
-export function collectSaleBatchCodes(sale: SaleWithBatchSources): string[] {
-  const codes = new Set<string>();
+export function collectSalePartaiLabels(sale: SaleWithBatchSources): string[] {
+  const labels = new Set<string>();
 
   for (const item of sale.saleItems) {
     for (const source of item.sources) {
-      const code =
-        source.thicknessStock?.purchase.batchCode ??
-        source.purchaseItem?.purchase.batchCode;
-      if (code) {
-        codes.add(code);
+      const purchase =
+        source.thicknessStock?.purchase ?? source.purchaseItem?.purchase;
+      if (purchase) {
+        labels.add(formatPartaiLabel(purchase));
       }
     }
   }
 
-  return [...codes].sort((a, b) => a.localeCompare(b, "id-ID"));
+  return [...labels].sort((a, b) => a.localeCompare(b, "id-ID"));
+}
+
+/** @deprecated Gunakan collectSalePartaiLabels */
+export function collectSaleBatchCodes(sale: SaleWithBatchSources): string[] {
+  return collectSalePartaiLabels(sale);
 }

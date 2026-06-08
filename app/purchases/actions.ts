@@ -22,7 +22,9 @@ const purchaseSchema = z.object({
   clientRequestId: z.string().optional(),
   vendorId: z.string().min(1, "Vendor wajib dipilih"),
   purchaseDate: z.string().min(1, "Tanggal pembelian wajib diisi"),
-  batchCode: z.string().min(1, "Kode batch/truk wajib diisi"),
+  batchCode: z.string().trim().min(1, "Kode partai wajib diisi"),
+  batchYear: z.coerce.number().int().min(1900).max(2100),
+  woodSpecies: z.string().optional(),
   documentNumber: z.string().optional(),
   note: z.string().optional(),
   bpCost: z.coerce.number().min(0),
@@ -35,12 +37,11 @@ const purchaseSchema = z.object({
 export async function createPurchaseAction(formData: FormData) {
   await ensureAuthenticated();
   const payload = parsePurchaseForm(formData);
-  await createWoodPurchase(payload);
+  const purchase = await createWoodPurchase(payload);
   revalidatePath("/purchases");
   revalidatePath("/stocks");
   revalidatePath("/sales/new");
-  revalidatePath("/sales");
-  redirect("/purchases");
+  redirect(`/purchases/${purchase.id}`);
 }
 
 export async function updatePurchaseAction(id: string, formData: FormData) {
@@ -49,11 +50,10 @@ export async function updatePurchaseAction(id: string, formData: FormData) {
   await updateWoodPurchase(id, payload);
   revalidatePath("/purchases");
   revalidatePath(`/purchases/${id}`);
-  revalidatePath(`/purchases/${id}/edit`);
   revalidatePath("/stocks");
   revalidatePath("/sales/new");
   revalidatePath("/sales");
-  redirect("/purchases");
+  redirect(`/purchases/${id}`);
 }
 
 function parsePurchaseForm(formData: FormData) {
@@ -62,6 +62,8 @@ function parsePurchaseForm(formData: FormData) {
     vendorId: formData.get("vendorId"),
     purchaseDate: formData.get("purchaseDate"),
     batchCode: formData.get("batchCode"),
+    batchYear: formData.get("batchYear"),
+    woodSpecies: formData.get("woodSpecies"),
     documentNumber: formData.get("documentNumber"),
     note: formData.get("note"),
     bpCost: formData.get("bpCost"),
@@ -97,6 +99,8 @@ function parsePurchaseForm(formData: FormData) {
     clientRequestId: main.clientRequestId?.trim() || undefined,
     purchaseDate: new Date(main.purchaseDate),
     batchCode: main.batchCode,
+    batchYear: main.batchYear,
+    woodSpecies: main.woodSpecies?.trim() || undefined,
     documentNumber: main.documentNumber,
     note: main.note,
     bpCost: main.bpCost,

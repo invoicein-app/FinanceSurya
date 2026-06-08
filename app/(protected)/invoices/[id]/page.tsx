@@ -30,6 +30,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getInvoiceGroupById, paymentStatusLabel } from "@/lib/services/invoice-group-service";
+import {
+  formatPartaiKaplingSource,
+  formatPartaiThicknessSource,
+} from "@/lib/partai/format-partai-label";
 import { cn } from "@/lib/utils";
 
 type InvoiceDetailPageProps = {
@@ -41,18 +45,36 @@ function formatPartaiSource(source: {
   volumeTaken: unknown;
   purchaseItem: {
     noKapling: string;
-    purchase: { batchCode: string };
+    purchase: {
+      batchCode: string;
+      batchYear?: number | null;
+      woodSpecies?: string | null;
+      purchaseDate?: Date | string;
+    };
   } | null;
   thicknessStock: {
     thicknessMm: unknown;
-    purchase: { batchCode: string };
+    purchase: {
+      batchCode: string;
+      batchYear?: number | null;
+      woodSpecies?: string | null;
+      purchaseDate?: Date | string;
+    };
   } | null;
 }): string {
   if (source.thicknessStock) {
-    return `${source.thicknessStock.purchase.batchCode} — ketebalan ${String(source.thicknessStock.thicknessMm)} mm — qty ${Number(source.qtyTaken).toLocaleString("id-ID")}`;
+    return formatPartaiThicknessSource(
+      source.thicknessStock.purchase,
+      String(source.thicknessStock.thicknessMm),
+      Number(source.qtyTaken),
+    );
   }
   if (source.purchaseItem) {
-    return `${source.purchaseItem.purchase.batchCode} / Kapling ${source.purchaseItem.noKapling} — qty ${Number(source.qtyTaken).toLocaleString("id-ID")}`;
+    return formatPartaiKaplingSource(
+      source.purchaseItem.purchase,
+      source.purchaseItem.noKapling,
+      Number(source.qtyTaken),
+    );
   }
   return "Sumber tidak lengkap";
 }

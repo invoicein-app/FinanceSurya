@@ -93,6 +93,8 @@ model WoodPurchase {
   vendorId         String
   purchaseDate     DateTime
   batchCode        String
+  batchYear        Int?
+  woodSpecies      String?
   documentNumber   String?
   note             String?
   bpCost           Decimal                        @default(0) @db.Decimal(14, 2)
@@ -108,6 +110,7 @@ model WoodPurchase {
 
   @@index([vendorId])
   @@index([purchaseDate])
+  @@index([batchYear])
 }
 
 /// Stok veneer (atau setara) per partai per nilai ketebalan — unit utama: qty per ketebalan.

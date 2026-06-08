@@ -9,6 +9,7 @@ import { PurchaseForm } from "@/components/purchases/purchase-form";
 import { Button } from "@/components/ui/button";
 import { getVendors } from "@/lib/services/vendor-service";
 import { getWoodPurchaseById } from "@/lib/services/wood-purchase-service";
+import { formatPartaiLabel } from "@/lib/partai/format-partai-label";
 
 type EditPurchasePageProps = {
   params: Promise<{ id: string }>;
@@ -26,11 +27,14 @@ export default async function EditPurchasePage({ params }: EditPurchasePageProps
   }
 
   const updateAction = updatePurchaseAction.bind(null, purchase.id);
+  const partaiLabel = formatPartaiLabel(purchase);
+  const defaultBatchYear =
+    purchase.batchYear ?? new Date(purchase.purchaseDate).getFullYear();
 
   return (
     <AppListPage
       title="Edit Partai Pembelian"
-      description={`${purchase.batchCode} · ${purchase.vendor.name}`}
+      description={`${partaiLabel} · ${purchase.vendor.name}`}
       icon={Pencil}
       actions={
         <>
@@ -61,6 +65,8 @@ export default async function EditPurchasePage({ params }: EditPurchasePageProps
             vendorId: purchase.vendorId,
             purchaseDate: purchase.purchaseDate.toISOString().slice(0, 10),
             batchCode: purchase.batchCode,
+            batchYear: defaultBatchYear,
+            woodSpecies: purchase.woodSpecies ?? "",
             documentNumber: purchase.documentNumber || "",
             note: purchase.note || "",
             bpCost: Number(purchase.bpCost),

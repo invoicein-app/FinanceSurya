@@ -43,7 +43,7 @@ export type SaleListRow = {
   itemCount: number;
   sourceCount: number;
   firstItemName: string;
-  batchCodes: string[];
+  partaiLabels: string[];
   grandTotal: number;
   invoiceGroupId: string | null;
   invoiceGroupCode: string | null;
@@ -263,7 +263,7 @@ export function SalesTable({ initialRows }: SalesTableProps) {
               <TableHead className={TABLE_HEAD_CLASS}>Tanggal</TableHead>
               <TableHead className={TABLE_HEAD_CLASS}>Customer</TableHead>
               <TableHead className={TABLE_HEAD_CLASS}>Invoice</TableHead>
-              <TableHead className={TABLE_HEAD_CLASS}>Kode Partai</TableHead>
+              <TableHead className={TABLE_HEAD_CLASS}>Partai</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-center")}>Jumlah Item</TableHead>
               <TableHead className={cn(TABLE_HEAD_CLASS, "text-center")}>
                 Jumlah Sumber Partai
@@ -343,16 +343,16 @@ export function SalesTable({ initialRows }: SalesTableProps) {
                       )}
                     </TableCell>
                     <TableCell className={cn(TABLE_CELL_DEFAULT, "max-w-[200px] whitespace-normal")}>
-                      {sale.batchCodes.length === 0 ? (
+                      {sale.partaiLabels.length === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
-                        <div className="flex flex-wrap gap-1" title={sale.batchCodes.join(", ")}>
-                          {sale.batchCodes.map((code) => (
+                        <div className="flex flex-wrap gap-1" title={sale.partaiLabels.join(", ")}>
+                          {sale.partaiLabels.map((label) => (
                             <span
-                              key={code}
-                              className="inline-flex rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs font-medium text-foreground"
+                              key={label}
+                              className="inline-flex rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 text-xs font-medium text-foreground"
                             >
-                              {code}
+                              {label}
                             </span>
                           ))}
                         </div>
