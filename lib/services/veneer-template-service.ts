@@ -312,8 +312,7 @@ export type VeneerSaleLineInput = {
 };
 
 /**
- * SELECT dilakukan sebelum batch (agar INSERT/UPDATE bisa masuk `$transaction([...])`
- * tanpa interactive tx — cocok untuk Supabase pooler).
+ * Satu upsert per specKey — aman untuk beberapa baris penjualan identik dan race concurrent.
  */
 export async function collectVeneerTemplateSaleSqlOps(
   db: Pick<PrismaClient, "$queryRaw" | "$executeRaw">,
@@ -335,6 +334,8 @@ export async function collectVeneerTemplateSaleSqlOps(
     throw error;
   }
 
+  /** Baris terakhir menang — hindari beberapa INSERT untuk specKey sama dalam satu transaksi. */
+  const payloadBySpecKey = new Map<string, VeneerTemplatePayload>();
   for (const line of lines) {
     const payload = buildTemplatePayloadFromSpecs({
       customerId: trimmedCustomerId,
@@ -348,43 +349,27 @@ export async function collectVeneerTemplateSaleSqlOps(
     if (!payload) {
       continue;
     }
+    payloadBySpecKey.set(payload.specKey, payload);
+  }
 
-    const existingRows = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT id
-      FROM "VeneerTemplate"
-      WHERE "customerId" = ${trimmedCustomerId}
-        AND "specKey" = ${payload.specKey}
-      LIMIT 1
-    `);
-    const existing = existingRows[0];
-
-    if (!existing) {
-      out.push(
-        db.$executeRaw(Prisma.sql`
-          INSERT INTO "VeneerTemplate"
-            ("id", "customerId", "templateName", "specKey", "thickness", "width", "length", "grade", "unit", "defaultPrice", "isActive", "source", "createdAt", "updatedAt")
-          VALUES
-            (gen_random_uuid()::text, ${payload.customerId}, ${payload.templateName}, ${payload.specKey}, ${payload.thickness}, ${payload.width}, ${payload.length}, ${payload.grade}, ${payload.unit}, ${payload.defaultPrice}, true, 'auto', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `),
-      );
-      continue;
-    }
-
+  for (const payload of payloadBySpecKey.values()) {
     out.push(
       db.$executeRaw(Prisma.sql`
-        UPDATE "VeneerTemplate"
-        SET
-          "templateName" = ${payload.templateName},
-          thickness = ${payload.thickness},
-          width = ${payload.width},
-          length = ${payload.length},
-          grade = ${payload.grade},
-          unit = ${payload.unit},
-          "defaultPrice" = ${payload.defaultPrice},
+        INSERT INTO "VeneerTemplate"
+          ("id", "customerId", "templateName", "specKey", "thickness", "width", "length", "grade", "unit", "defaultPrice", "isActive", "source", "createdAt", "updatedAt")
+        VALUES
+          (gen_random_uuid()::text, ${payload.customerId}, ${payload.templateName}, ${payload.specKey}, ${payload.thickness}, ${payload.width}, ${payload.length}, ${payload.grade}, ${payload.unit}, ${payload.defaultPrice}, true, 'auto', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT ("customerId", "specKey")
+        DO UPDATE SET
+          "templateName" = EXCLUDED."templateName",
+          thickness = EXCLUDED.thickness,
+          width = EXCLUDED.width,
+          length = EXCLUDED.length,
+          grade = EXCLUDED.grade,
+          unit = EXCLUDED.unit,
+          "defaultPrice" = EXCLUDED."defaultPrice",
           "isActive" = true,
           "updatedAt" = CURRENT_TIMESTAMP
-        WHERE id = ${existing.id}
-          AND "customerId" = ${trimmedCustomerId}
       `),
     );
   }
