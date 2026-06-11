@@ -1,4 +1,7 @@
+"use client";
+
 import { addThicknessStockAction, deleteThicknessStockAction } from "@/app/purchases/actions";
+import { MutationActionForm } from "@/components/mutation-action-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -87,7 +90,7 @@ export function PartaiThicknessStockSection({
 
         <DetailContentPanel>
           <p className="mb-3 text-sm font-medium">Tambah baris stok</p>
-          <form action={addThicknessStockAction} className="space-y-2">
+          <MutationActionForm action={addThicknessStockAction} className="space-y-2">
             <input type="hidden" name="purchaseId" value={purchaseId} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
               <div className="flex min-w-0 flex-col gap-2">
@@ -122,7 +125,7 @@ export function PartaiThicknessStockSection({
             <DetailHintBox>
               Desimal pakai <strong>titik</strong> (mis. 0.6), bukan koma.
             </DetailHintBox>
-          </form>
+          </MutationActionForm>
         </DetailContentPanel>
 
         {thicknessStocks.length === 0 ? (
@@ -158,13 +161,16 @@ export function PartaiThicknessStockSection({
                       </TableCell>
                       <TableCell className={TABLE_CELL_MUTED}>{row.unit ?? "—"}</TableCell>
                       <TableCell className={TABLE_CELL_ACTIONS}>
-                        <form action={deleteThicknessStockAction}>
+                        <MutationActionForm
+                          action={deleteThicknessStockAction}
+                          mutationKind="delete"
+                        >
                           <input type="hidden" name="purchaseId" value={purchaseId} />
                           <input type="hidden" name="stockId" value={row.id} />
                           <Button type="submit" variant="outline" size="sm">
                             Hapus
                           </Button>
-                        </form>
+                        </MutationActionForm>
                       </TableCell>
                     </TableRow>
                   );

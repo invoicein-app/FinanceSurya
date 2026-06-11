@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { PlusCircle, Tag } from "lucide-react";
 
 import { AppListPage } from "@/components/layout/app-list-page";
@@ -57,10 +57,10 @@ export default async function PriceListPage({ searchParams }: PriceListPageProps
       icon={Tag}
       actions={
         <Button asChild className="gap-1.5 shadow-sm">
-          <Link href="/sales/new">
+          <AppNavLink href="/sales/new">
             <PlusCircle className="size-4" />
             Input Penjualan
-          </Link>
+          </AppNavLink>
         </Button>
       }
     >

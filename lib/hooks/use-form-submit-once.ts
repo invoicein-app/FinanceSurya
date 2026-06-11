@@ -3,6 +3,8 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 
+import { useNavProgressOptional } from "@/components/nav-progress-context";
+
 type FormAction = (formData: FormData) => void | Promise<void>;
 
 type UseFormSubmitOnceOptions = {
@@ -23,6 +25,7 @@ export function useFormSubmitOnce({
   submittingLabel = "Menyimpan...",
   onError,
 }: UseFormSubmitOnceOptions) {
+  const nav = useNavProgressOptional();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
 
@@ -40,19 +43,22 @@ export function useFormSubmitOnce({
 
       isSubmittingRef.current = true;
       setIsSubmitting(true);
+      nav?.startSave();
 
       try {
         await action(new FormData(event.currentTarget));
+        nav?.clearPending();
       } catch (error) {
         if (isRedirectError(error)) {
           throw error;
         }
+        nav?.clearPending();
         isSubmittingRef.current = false;
         setIsSubmitting(false);
         onError?.(error);
       }
     },
-    [action, beforeSubmit, onError],
+    [action, beforeSubmit, onError, nav],
   );
 
   return { isSubmitting, submittingLabel, handleSubmit };

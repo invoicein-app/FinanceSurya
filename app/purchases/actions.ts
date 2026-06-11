@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+import { formDataOptionalString, formDataRequiredString } from "@/lib/zod/form-data";
 
 import { normalizeThicknessMmFormValue } from "@/lib/sales/thickness-mm";
 import {
@@ -19,14 +20,17 @@ import {
 } from "@/lib/services/wood-purchase-service";
 
 const purchaseSchema = z.object({
-  clientRequestId: z.string().optional(),
-  vendorId: z.string().min(1, "Vendor wajib dipilih"),
-  purchaseDate: z.string().min(1, "Tanggal pembelian wajib diisi"),
-  batchCode: z.string().trim().min(1, "Kode partai wajib diisi"),
+  clientRequestId: formDataOptionalString(),
+  vendorId: formDataRequiredString("Vendor wajib dipilih"),
+  purchaseDate: formDataRequiredString("Tanggal pembelian wajib diisi"),
+  batchCode: z.preprocess(
+    (val) => (val == null ? "" : String(val)),
+    z.string().trim().min(1, "Kode partai wajib diisi"),
+  ),
   batchYear: z.coerce.number().int().min(1900).max(2100),
-  woodSpecies: z.string().optional(),
-  documentNumber: z.string().optional(),
-  note: z.string().optional(),
+  woodSpecies: formDataOptionalString(),
+  documentNumber: formDataOptionalString(),
+  note: formDataOptionalString(),
   bpCost: z.coerce.number().min(0),
   cuttingCost: z.coerce.number().min(0),
   shippingCost: z.coerce.number().min(0),
@@ -140,7 +144,7 @@ const thicknessMmSchema = z.preprocess(
 const thicknessStockSchema = z.object({
   thicknessMm: thicknessMmSchema,
   qtyInitial: z.coerce.number().min(0, "Qty tidak boleh negatif"),
-  unit: z.string().optional(),
+  unit: formDataOptionalString(),
 });
 
 export async function addThicknessStockAction(formData: FormData) {

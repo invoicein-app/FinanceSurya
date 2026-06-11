@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { LayoutDashboard, PlusCircle } from "lucide-react";
 
 import { createSaleAction } from "@/app/sales/actions";
@@ -25,13 +25,13 @@ export default async function NewSalePage() {
       actions={
         <>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/sales">Riwayat Penjualan</Link>
+            <AppNavLink href="/sales">Riwayat Penjualan</AppNavLink>
           </Button>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/">
+            <AppNavLink href="/">
               <LayoutDashboard className="size-4" />
               Dashboard
-            </Link>
+            </AppNavLink>
           </Button>
         </>
       }
@@ -43,7 +43,7 @@ export default async function NewSalePage() {
                 Belum ada master customer. Tambahkan customer terlebih dulu.
               </p>
               <Button asChild variant="outline" size="sm">
-                <Link href="/customers">Buka Master Customer</Link>
+                <AppNavLink href="/customers">Buka Master Customer</AppNavLink>
               </Button>
             </div>
           ) : (
@@ -52,9 +52,9 @@ export default async function NewSalePage() {
                 <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                   Belum ada baris stok per ketebalan di partai — penjualan tetap bisa disimpan
                   (alokasi sumber opsional). Tambahkan stok nanti di{" "}
-                  <Link className="font-medium text-primary underline" href="/purchases">
+                  <AppNavLink className="font-medium text-primary underline" href="/purchases">
                     detail partai
-                  </Link>
+                  </AppNavLink>
                   ; saldo bisa sementara minus sampai diisi.
                 </p>
               ) : null}

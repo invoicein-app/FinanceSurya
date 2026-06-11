@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { deleteVendorAction, updateVendorAction } from "@/app/vendors/actions";
+import { MutationActionForm } from "@/components/mutation-action-form";
 import {
   DashboardTableArea,
   TABLE_ACTION_BTN_DELETE,
@@ -72,9 +73,13 @@ export function VendorsTable({ initialRows }: { initialRows: VendorListRow[] }) 
                 return (
                   <TableRow key={vendor.id} className={TABLE_BODY_ROW_CLASS}>
                     <TableCell className={TABLE_CELL_DEFAULT}>
-                      <form id={updateFormId} action={updateVendorAction} className="hidden">
+                      <MutationActionForm
+                        id={updateFormId}
+                        action={updateVendorAction}
+                        className="hidden"
+                      >
                         <input type="hidden" name="id" value={vendor.id} />
-                      </form>
+                      </MutationActionForm>
                       <Input
                         form={updateFormId}
                         name="name"
@@ -94,7 +99,11 @@ export function VendorsTable({ initialRows }: { initialRows: VendorListRow[] }) 
                         >
                           Update
                         </Button>
-                        <form action={deleteVendorAction} className="inline-block">
+                        <MutationActionForm
+                          action={deleteVendorAction}
+                          mutationKind="delete"
+                          className="inline-block"
+                        >
                           <input type="hidden" name="id" value={vendor.id} />
                           <Button
                             type="submit"
@@ -105,7 +114,7 @@ export function VendorsTable({ initialRows }: { initialRows: VendorListRow[] }) 
                             <Trash2 className="size-3.5" />
                             Hapus
                           </Button>
-                        </form>
+                        </MutationActionForm>
                       </div>
                     </TableCell>
                   </TableRow>

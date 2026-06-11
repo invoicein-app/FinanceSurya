@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { notFound } from "next/navigation";
 import { FileText, Pencil } from "lucide-react";
 
@@ -56,17 +56,17 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
       actions={
         <>
           <Button asChild className="shadow-sm">
-            <Link href={`/sales/${sale.id}/edit`}>
+            <AppNavLink href={`/sales/${sale.id}/edit`}>
               <Pencil className="size-4" />
               Edit Penjualan
-            </Link>
+            </AppNavLink>
           </Button>
           <SaleDeleteButton
             saleId={sale.id}
             label={`${new Date(sale.saleDate).toLocaleDateString("id-ID")} — ${customerLabel}`}
           />
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/sales">Kembali ke Daftar</Link>
+            <AppNavLink href="/sales">Kembali ke Daftar</AppNavLink>
           </Button>
         </>
       }
@@ -93,12 +93,12 @@ export default async function SaleDetailPage({ params }: SaleDetailPageProps) {
             </p>
             {sale.invoiceGroup ? (
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Link
+                <AppNavLink
                   href={`/invoices/${sale.invoiceGroup.id}`}
                   className="font-medium text-primary hover:underline"
                 >
                   {sale.invoiceGroup.manualInvoiceCode}
-                </Link>
+                </AppNavLink>
                 <InvoiceStatusBadge status={sale.invoiceGroup.paymentStatus} />
               </div>
             ) : (

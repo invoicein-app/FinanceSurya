@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+import { formDataOptionalString, formDataRequiredString } from "@/lib/zod/form-data";
 import {
   createInvoiceGroup,
   deleteInvoiceGroup,
@@ -17,7 +18,7 @@ const createInvoiceGroupSchema = z.object({
   saleIds: z.array(z.string().min(1)).min(1, "Pilih minimal 1 penjualan."),
   manualInvoiceCode: z.string().trim().min(1, "Kode invoice wajib diisi."),
   invoiceDate: z.string().min(1, "Tanggal invoice wajib diisi."),
-  notes: z.string().optional(),
+  notes: formDataOptionalString(),
 });
 
 export type CreateInvoiceGroupActionResult =
@@ -66,7 +67,7 @@ const updateInvoiceGroupSchema = z.object({
   invoiceGroupId: z.string().min(1),
   manualInvoiceCode: z.string().trim().min(1, "Kode invoice wajib diisi."),
   invoiceDate: z.string().min(1, "Tanggal invoice wajib diisi."),
-  notes: z.string().optional(),
+  notes: formDataOptionalString(),
   paidAmount: z.coerce.number().min(0, "Jumlah pembayaran tidak boleh negatif."),
 });
 
@@ -145,7 +146,7 @@ export async function removeSaleFromInvoiceGroupAction(
 }
 
 const updatePaymentSchema = z.object({
-  invoiceGroupId: z.string().min(1),
+  invoiceGroupId: formDataRequiredString("Invoice tidak valid."),
   paidAmount: z.coerce.number().min(0),
 });
 
@@ -170,7 +171,7 @@ const recordPaymentSchema = z.object({
   invoiceGroupId: z.string().min(1),
   paymentDate: z.string().min(1, "Tanggal pelunasan wajib diisi."),
   amount: z.coerce.number().positive("Jumlah pelunasan wajib lebih dari 0."),
-  notes: z.string().optional(),
+  notes: formDataOptionalString(),
 });
 
 export type RecordInvoiceGroupPaymentActionResult =

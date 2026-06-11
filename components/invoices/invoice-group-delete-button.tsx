@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { deleteInvoiceGroupAction } from "@/app/sales/invoice-group-actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import { Button } from "@/components/ui/button";
 
 type InvoiceGroupDeleteButtonProps = {
@@ -19,6 +20,7 @@ export function InvoiceGroupDeleteButton({
   saleCount,
 }: InvoiceGroupDeleteButtonProps) {
   const router = useRouter();
+  const { wrapDelete } = useMutationLoading();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function InvoiceGroupDeleteButton({
     setError(null);
 
     try {
-      await deleteInvoiceGroupAction(invoiceGroupId);
+      await wrapDelete(() => deleteInvoiceGroupAction(invoiceGroupId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membatalkan invoice group.");
       setSubmitting(false);

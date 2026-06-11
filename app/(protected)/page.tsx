@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { LayoutDashboard, Package, PlusCircle, ShoppingCart, Users } from "lucide-react";
 
 import { AppListPage } from "@/components/layout/app-list-page";
@@ -94,10 +94,10 @@ export default async function Home() {
                   variant="outline"
                   className="h-auto justify-start gap-2 bg-card py-3 shadow-sm"
                 >
-                  <Link href={link.href}>
+                  <AppNavLink href={link.href}>
                     <Icon className="size-4 shrink-0 text-primary" />
                     {link.label}
-                  </Link>
+                  </AppNavLink>
                 </Button>
               );
             })}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { updateInvoiceGroupAction } from "@/app/sales/invoice-group-actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export function InvoiceGroupEditForm({
   totalAmount,
 }: InvoiceGroupEditFormProps) {
   const router = useRouter();
+  const { wrapSave } = useMutationLoading();
   const [code, setCode] = useState(manualInvoiceCode);
   const [date, setDate] = useState(toDateInputValue(invoiceDate));
   const [notesValue, setNotesValue] = useState(notes);
@@ -46,23 +48,29 @@ export function InvoiceGroupEditForm({
     setError(null);
     setSuccess(null);
 
-    const result = await updateInvoiceGroupAction({
-      invoiceGroupId,
-      manualInvoiceCode: code,
-      invoiceDate: date,
-      notes: notesValue,
-      paidAmount: Number(paid),
-    });
+    try {
+      const result = await wrapSave(() =>
+        updateInvoiceGroupAction({
+          invoiceGroupId,
+          manualInvoiceCode: code,
+          invoiceDate: date,
+          notes: notesValue,
+          paidAmount: Number(paid),
+        }),
+      );
 
-    setSubmitting(false);
+      setSubmitting(false);
 
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      setSuccess("Invoice group berhasil diperbarui.");
+      router.refresh();
+    } catch {
+      setSubmitting(false);
     }
-
-    setSuccess("Invoice group berhasil diperbarui.");
-    router.refresh();
   };
 
   return (

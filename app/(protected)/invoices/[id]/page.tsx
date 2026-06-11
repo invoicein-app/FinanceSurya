@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { notFound } from "next/navigation";
 import { FileStack } from "lucide-react";
 
@@ -101,10 +101,10 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
       actions={
         <>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/invoices">Daftar Invoice</Link>
+            <AppNavLink href="/invoices">Daftar Invoice</AppNavLink>
           </Button>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/sales">Penjualan</Link>
+            <AppNavLink href="/sales">Penjualan</AppNavLink>
           </Button>
         </>
       }
@@ -271,7 +271,7 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/sales/${sale.id}`}>Detail</Link>
+                          <AppNavLink href={`/sales/${sale.id}`}>Detail</AppNavLink>
                         </Button>
                         <RemoveSaleFromInvoiceButton
                           saleId={sale.id}

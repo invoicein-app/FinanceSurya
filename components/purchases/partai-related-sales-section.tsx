@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,6 +8,7 @@ import {
   previewPartaiTransferDestinationAction,
   transferSaleAllocationAction,
 } from "@/app/purchases/actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import {
   AnalysisSection,
   DetailContentPanel,
@@ -68,6 +69,7 @@ export function PartaiRelatedSalesSection({
   transferOptions,
 }: PartaiRelatedSalesSectionProps) {
   const router = useRouter();
+  const { wrapSave } = useMutationLoading();
   const { rows, summary } = data;
   const thicknessSummary = Object.entries(summary.qtyByThickness).sort(([a], [b]) =>
     a.localeCompare(b, undefined, { numeric: true }),
@@ -152,10 +154,12 @@ export function PartaiRelatedSalesSection({
     setTransferring(true);
     setErrorMessage(null);
     try {
-      await transferSaleAllocationAction(
-        transferTarget.sourceId,
-        currentPurchaseId,
-        destinationId,
+      await wrapSave(() =>
+        transferSaleAllocationAction(
+          transferTarget.sourceId,
+          currentPurchaseId,
+          destinationId,
+        ),
       );
       closeTransfer(true);
       router.refresh();
@@ -182,7 +186,7 @@ export function PartaiRelatedSalesSection({
         </Button>
       ) : null}
       <Button asChild variant="outline" size="sm" className={stacked ? "w-full" : undefined}>
-        <Link href={`/sales/${row.saleId}`}>{stacked ? "Lihat penjualan" : "Detail"}</Link>
+        <AppNavLink href={`/sales/${row.saleId}`}>{stacked ? "Lihat penjualan" : "Detail"}</AppNavLink>
       </Button>
     </div>
   );

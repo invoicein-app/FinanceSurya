@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { LayoutDashboard, Package, PlusCircle } from "lucide-react";
 
 import { createPurchaseAction } from "@/app/purchases/actions";
@@ -19,16 +19,16 @@ export default async function NewPurchasePage() {
       actions={
         <>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/purchases">
+            <AppNavLink href="/purchases">
               <Package className="size-4" />
               Daftar Partai
-            </Link>
+            </AppNavLink>
           </Button>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/">
+            <AppNavLink href="/">
               <LayoutDashboard className="size-4" />
               Dashboard
-            </Link>
+            </AppNavLink>
           </Button>
         </>
       }
@@ -40,7 +40,7 @@ export default async function NewPurchasePage() {
               Belum ada vendor. Tambahkan vendor dulu sebelum input pembelian.
             </p>
             <Button asChild size="sm" variant="outline">
-              <Link href="/vendors">Buka Master Vendor</Link>
+              <AppNavLink href="/vendors">Buka Master Vendor</AppNavLink>
             </Button>
           </div>
         ) : (

@@ -132,6 +132,37 @@
 }
 
 @layer components {
+  .app-shell-main__inner--loading {
+    opacity: 0.42;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .app-shell-main__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .app-shell-main__overlay-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 0.75rem;
+    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+    background: color-mix(in oklch, var(--card) 92%, transparent);
+    padding: 1.25rem 1.75rem;
+    box-shadow:
+      0 10px 30px -12px color-mix(in oklch, var(--foreground) 18%, transparent),
+      0 0 0 1px color-mix(in oklch, var(--primary) 12%, transparent);
+    backdrop-filter: blur(6px);
+  }
+
   [data-dashboard-table] [data-slot="table-header"] [data-slot="table-row"] {
     border-bottom-width: 0;
   }

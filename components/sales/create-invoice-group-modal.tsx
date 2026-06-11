@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { FileStack } from "lucide-react";
 
 import { createInvoiceGroupAction } from "@/app/sales/invoice-group-actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export function CreateInvoiceGroupModal({
   onSuccess,
 }: CreateInvoiceGroupModalProps) {
   const router = useRouter();
+  const { wrapSave } = useMutationLoading();
   const [manualInvoiceCode, setManualInvoiceCode] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
@@ -62,28 +64,34 @@ export function CreateInvoiceGroupModal({
     setSubmitting(true);
     setErrorMessage(null);
 
-    const result = await createInvoiceGroupAction({
-      saleIds: selectedRows.map((row) => row.id),
-      manualInvoiceCode,
-      invoiceDate,
-      notes: notes.trim() || undefined,
-    });
+    try {
+      const result = await wrapSave(() =>
+        createInvoiceGroupAction({
+          saleIds: selectedRows.map((row) => row.id),
+          manualInvoiceCode,
+          invoiceDate,
+          notes: notes.trim() || undefined,
+        }),
+      );
 
-    setSubmitting(false);
+      setSubmitting(false);
 
-    if (!result.ok) {
-      setErrorMessage(result.error);
-      return;
+      if (!result.ok) {
+        setErrorMessage(result.error);
+        return;
+      }
+
+      onSuccess({
+        saleIds: selectedRows.map((row) => row.id),
+        invoiceGroupId: result.invoiceGroupId,
+        manualInvoiceCode: result.manualInvoiceCode,
+      });
+      setManualInvoiceCode("");
+      setNotes("");
+      router.refresh();
+    } catch {
+      setSubmitting(false);
     }
-
-    onSuccess({
-      saleIds: selectedRows.map((row) => row.id),
-      invoiceGroupId: result.invoiceGroupId,
-      manualInvoiceCode: result.manualInvoiceCode,
-    });
-    setManualInvoiceCode("");
-    setNotes("");
-    router.refresh();
   };
 
   return (

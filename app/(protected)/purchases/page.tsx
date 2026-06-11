@@ -1,9 +1,10 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { LayoutDashboard, Package, Plus } from "lucide-react";
 
 import { AppListPage } from "@/components/layout/app-list-page";
 import { DataListCard } from "@/components/layout/data-list-card";
 import { FormSectionCard, SELECT_FIELD_CLASS } from "@/components/layout/app-theme-ui";
+import { ExportPurchasesExcelButton } from "@/components/purchases/export-purchases-excel-button";
 import { PurchasesTable } from "@/components/purchases/purchases-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,16 +65,16 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
       actions={
         <>
           <Button asChild className="gap-1.5 shadow-sm">
-            <Link href="/purchases/new">
+            <AppNavLink href="/purchases/new">
               <Plus className="size-4" />
               Tambah Partai
-            </Link>
+            </AppNavLink>
           </Button>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/">
+            <AppNavLink href="/">
               <LayoutDashboard className="size-4" />
               Dashboard
-            </Link>
+            </AppNavLink>
           </Button>
         </>
       }
@@ -104,15 +105,16 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
               ))}
             </select>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <Button type="submit" className="shadow-sm">
               Terapkan filter
             </Button>
             {(q || yearParam) && (
               <Button asChild type="button" variant="outline" className="bg-card">
-                <Link href="/purchases">Reset</Link>
+                <AppNavLink href="/purchases">Reset</AppNavLink>
               </Button>
             )}
+            <ExportPurchasesExcelButton year={yearParam} q={q} />
           </div>
         </form>
       </FormSectionCard>

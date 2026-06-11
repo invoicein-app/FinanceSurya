@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Banknote } from "lucide-react";
 
 import { recordInvoiceGroupPaymentAction } from "@/app/sales/invoice-group-actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export function InvoicePaymentModal({
   onClose,
   onSuccess,
 }: InvoicePaymentModalProps) {
+  const { wrapSave } = useMutationLoading();
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("0");
   const [notes, setNotes] = useState("");
@@ -81,26 +83,32 @@ export function InvoicePaymentModal({
     setSubmitting(true);
     setErrorMessage(null);
 
-    const result = await recordInvoiceGroupPaymentAction({
-      invoiceGroupId: target.id,
-      paymentDate,
-      amount: numericAmount,
-      notes: notes.trim() || undefined,
-    });
+    try {
+      const result = await wrapSave(() =>
+        recordInvoiceGroupPaymentAction({
+          invoiceGroupId: target.id,
+          paymentDate,
+          amount: numericAmount,
+          notes: notes.trim() || undefined,
+        }),
+      );
 
-    setSubmitting(false);
+      setSubmitting(false);
 
-    if (!result.ok) {
-      setErrorMessage(result.error);
-      return;
+      if (!result.ok) {
+        setErrorMessage(result.error);
+        return;
+      }
+
+      onSuccess({
+        invoiceGroupId: target.id,
+        paidAmount: result.paidAmount,
+        remainingAmount: result.remainingAmount,
+        paymentStatus: result.paymentStatus,
+      });
+    } catch {
+      setSubmitting(false);
     }
-
-    onSuccess({
-      invoiceGroupId: target.id,
-      paidAmount: result.paidAmount,
-      remainingAmount: result.remainingAmount,
-      paymentStatus: result.paymentStatus,
-    });
   };
 
   return (

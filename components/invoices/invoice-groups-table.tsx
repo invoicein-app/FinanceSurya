@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { useState } from "react";
 import { Banknote } from "lucide-react";
 
@@ -120,12 +120,12 @@ export function InvoiceGroupsTable({ initialRows }: InvoiceGroupsTableProps) {
                 return (
                   <TableRow key={group.id} className={TABLE_BODY_ROW_CLASS}>
                     <TableCell className={TABLE_CELL_DEFAULT}>
-                      <Link
+                      <AppNavLink
                         href={`/invoices/${group.id}`}
                         className="font-semibold text-primary hover:underline"
                       >
                         {group.manualInvoiceCode}
-                      </Link>
+                      </AppNavLink>
                     </TableCell>
                     <TableCell className={TABLE_CELL_DATE}>
                       {new Date(group.invoiceDate).toLocaleDateString("id-ID", {

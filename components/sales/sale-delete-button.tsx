@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { deleteSaleAction } from "@/app/sales/actions";
+import { useNavProgressOptional } from "@/components/nav-progress-context";
 import { Button } from "@/components/ui/button";
 
 type SaleDeleteButtonProps = {
@@ -18,6 +19,7 @@ export function SaleDeleteButton({
   redirectTo = "/sales",
 }: SaleDeleteButtonProps) {
   const router = useRouter();
+  const nav = useNavProgressOptional();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,11 +41,14 @@ export function SaleDeleteButton({
     setErrorMessage(null);
 
     try {
+      nav?.startDelete();
       await deleteSaleAction(saleId);
       setConfirmOpen(false);
+      nav?.startNavigation(redirectTo);
       router.push(redirectTo);
       router.refresh();
     } catch (error) {
+      nav?.clearPending();
       setErrorMessage(
         error instanceof Error ? error.message : "Gagal menghapus transaksi penjualan.",
       );

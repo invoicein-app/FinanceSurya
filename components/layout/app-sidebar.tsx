@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { AppNavLink } from "@/components/app-nav-link";
 import {
   FileStack,
   LayoutDashboard,
@@ -95,7 +96,7 @@ export function AppSidebar({ userEmail }: AppSidebarProps) {
             const Icon = item.icon;
 
             return (
-              <Link
+              <AppNavLink
                 key={item.href}
                 href={item.href}
                 className={cn(
@@ -107,7 +108,7 @@ export function AppSidebar({ userEmail }: AppSidebarProps) {
               >
                 <Icon className="size-4 shrink-0 opacity-90" strokeWidth={2} />
                 {item.label}
-              </Link>
+              </AppNavLink>
             );
           })}
         </nav>

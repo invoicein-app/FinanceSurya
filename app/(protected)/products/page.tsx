@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { Boxes, LayoutDashboard } from "lucide-react";
 
 import { createProductAction } from "@/app/products/actions";
@@ -39,10 +39,10 @@ export default async function ProductsPage() {
       icon={Boxes}
       actions={
         <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-          <Link href="/">
+          <AppNavLink href="/">
             <LayoutDashboard className="size-4" />
             Dashboard
-          </Link>
+          </AppNavLink>
         </Button>
       }
     >

@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { useMemo, useState } from "react";
 import { Eye, Trash2 } from "lucide-react";
 
 import { deletePurchaseAction } from "@/app/purchases/actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import {
   DashboardTableArea,
   DataTableLink,
@@ -57,6 +58,7 @@ type ConfirmTarget = {
 };
 
 export function PurchasesTable({ initialRows }: PurchasesTableProps) {
+  const { wrapDelete } = useMutationLoading();
   const [rows, setRows] = useState(initialRows);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(25);
@@ -101,7 +103,7 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
     setErrorMessage(null);
 
     try {
-      await deletePurchaseAction(targetId);
+      await wrapDelete(() => deletePurchaseAction(targetId));
       setRows((current) => current.filter((row) => row.id !== targetId));
       setConfirmTarget(null);
     } catch (error) {
@@ -182,10 +184,10 @@ export function PurchasesTable({ initialRows }: PurchasesTableProps) {
                           variant="outline"
                           className={TABLE_ACTION_BTN_VIEW}
                         >
-                          <Link href={`/purchases/${purchase.id}`}>
+                          <AppNavLink href={`/purchases/${purchase.id}`}>
                             <Eye className="size-3.5" />
                             Detail
-                          </Link>
+                          </AppNavLink>
                         </Button>
                         <Button
                           type="button"

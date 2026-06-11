@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { LayoutDashboard, Users } from "lucide-react";
 
 import { createCustomerAction } from "@/app/customers/actions";
+import { MutationActionForm } from "@/components/mutation-action-form";
 import { CustomersTable } from "@/components/customers/customers-table";
 import { AppListPage } from "@/components/layout/app-list-page";
 import { DataListCard } from "@/components/layout/data-list-card";
@@ -31,10 +32,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
       icon={Users}
       actions={
         <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-          <Link href="/">
+          <AppNavLink href="/">
             <LayoutDashboard className="size-4" />
             Dashboard
-          </Link>
+          </AppNavLink>
         </Button>
       }
     >
@@ -45,7 +46,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
             daftar bawah.
           </p>
         ) : null}
-        <form
+        <MutationActionForm
           action={createCustomerAction}
           className="flex flex-col gap-4 sm:flex-row sm:items-end"
         >
@@ -56,7 +57,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           <Button type="submit" className="shrink-0 shadow-sm sm:min-w-[7rem]">
             Simpan
           </Button>
-        </form>
+        </MutationActionForm>
       </FormSectionCard>
 
       <DataListCard

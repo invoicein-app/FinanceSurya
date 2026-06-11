@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { FileText, LayoutDashboard, Plus } from "lucide-react";
 
 import { AppListPage } from "@/components/layout/app-list-page";
@@ -33,16 +33,16 @@ export default async function SalesPage() {
       actions={
         <>
           <Button asChild className="gap-1.5 shadow-sm">
-            <Link href="/sales/new">
+            <AppNavLink href="/sales/new">
               <Plus className="size-4" />
               Tambah Penjualan
-            </Link>
+            </AppNavLink>
           </Button>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/">
+            <AppNavLink href="/">
               <LayoutDashboard className="size-4" />
               Dashboard
-            </Link>
+            </AppNavLink>
           </Button>
         </>
       }

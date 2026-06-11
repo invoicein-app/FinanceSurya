@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Unlink } from "lucide-react";
 
 import { removeSaleFromInvoiceGroupAction } from "@/app/sales/invoice-group-actions";
+import { useNavProgressOptional } from "@/components/nav-progress-context";
 import { Button } from "@/components/ui/button";
 
 type RemoveSaleFromInvoiceButtonProps = {
@@ -17,6 +18,7 @@ export function RemoveSaleFromInvoiceButton({
   saleLabel,
 }: RemoveSaleFromInvoiceButtonProps) {
   const router = useRouter();
+  const nav = useNavProgressOptional();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,23 +26,32 @@ export function RemoveSaleFromInvoiceButton({
   const handleConfirm = async () => {
     setSubmitting(true);
     setError(null);
+    nav?.startSave();
 
-    const result = await removeSaleFromInvoiceGroupAction(saleId);
-    setSubmitting(false);
+    try {
+      const result = await removeSaleFromInvoiceGroupAction(saleId);
+      setSubmitting(false);
 
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
+      if (!result.ok) {
+        nav?.clearPending();
+        setError(result.error);
+        return;
+      }
 
-    setOpen(false);
-    if (result.groupDeleted) {
-      router.push("/invoices");
+      setOpen(false);
+      if (result.groupDeleted) {
+        nav?.startNavigation("/invoices");
+        router.push("/invoices");
+        router.refresh();
+        return;
+      }
+
+      nav?.clearPending();
       router.refresh();
-      return;
+    } catch {
+      nav?.clearPending();
+      setSubmitting(false);
     }
-
-    router.refresh();
   };
 
   return (

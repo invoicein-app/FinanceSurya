@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
+import { AppNavLink } from "@/components/app-nav-link";
 import { cn } from "@/lib/utils";
 
 /** Header row — no hover tint. */
@@ -86,11 +86,11 @@ export function DashboardTableArea({ children, className }: DashboardTableAreaPr
 /** Alias — semua tabel data list pakai ini. */
 export const DashboardDataTable = DashboardTableArea;
 
-type DataTableLinkProps = ComponentProps<typeof Link>;
+type DataTableLinkProps = ComponentProps<typeof AppNavLink>;
 
 export function DataTableLink({ className, ...props }: DataTableLinkProps) {
   return (
-    <Link
+    <AppNavLink
       className={cn(
         "inline-flex items-center gap-1 font-semibold text-primary underline-offset-4 transition-colors",
         "hover:text-primary/90 hover:underline",

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 
@@ -40,10 +40,10 @@ export default async function EditSalePage({ params }: EditSalePageProps) {
       actions={
         <>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href={`/sales/${sale.id}`}>Detail Penjualan</Link>
+            <AppNavLink href={`/sales/${sale.id}`}>Detail Penjualan</AppNavLink>
           </Button>
           <Button asChild variant="outline" className="bg-card shadow-sm">
-            <Link href="/sales">Riwayat Penjualan</Link>
+            <AppNavLink href="/sales">Riwayat Penjualan</AppNavLink>
           </Button>
         </>
       }
@@ -55,7 +55,7 @@ export default async function EditSalePage({ params }: EditSalePageProps) {
                 Master customer kosong. Tambahkan customer dulu sebelum edit transaksi.
               </p>
               <Button asChild variant="outline" size="sm">
-                <Link href="/customers">Buka Master Customer</Link>
+                <AppNavLink href="/customers">Buka Master Customer</AppNavLink>
               </Button>
             </div>
           ) : (

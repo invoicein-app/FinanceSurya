@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { notFound } from "next/navigation";
 import { LayoutDashboard, Package, Pencil } from "lucide-react";
 
@@ -46,19 +46,19 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
       actions={
         <>
           <Button asChild className="gap-1.5 shadow-sm">
-            <Link href={`/purchases/${purchase.id}/edit`}>
+            <AppNavLink href={`/purchases/${purchase.id}/edit`}>
               <Pencil className="size-4" />
               Edit Partai
-            </Link>
+            </AppNavLink>
           </Button>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/purchases">Daftar Partai</Link>
+            <AppNavLink href="/purchases">Daftar Partai</AppNavLink>
           </Button>
           <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-            <Link href="/">
+            <AppNavLink href="/">
               <LayoutDashboard className="size-4" />
               Dashboard
-            </Link>
+            </AppNavLink>
           </Button>
         </>
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
@@ -844,9 +844,9 @@ export function SaleForm({
                         <p className="font-medium">Belum ada partai dengan stok ketebalan</p>
                         <p className="mt-1 text-xs leading-relaxed">
                           Buka{" "}
-                          <Link href="/purchases" className="underline font-medium">
+                          <AppNavLink href="/purchases" className="underline font-medium">
                             Partai pembelian
-                          </Link>{" "}
+                          </AppNavLink>{" "}
                           dan pastikan tiap partai punya baris stok (default 0,6 &amp; 1,2 mm), lalu
                           refresh halaman ini.
                         </p>

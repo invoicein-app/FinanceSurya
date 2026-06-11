@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { FileStack, LayoutDashboard } from "lucide-react";
 import type { InvoicePaymentStatus } from "@prisma/client";
 
@@ -68,10 +68,10 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
       icon={FileStack}
       actions={
         <Button asChild variant="outline" className="gap-1.5 bg-card shadow-sm">
-          <Link href="/sales">
+          <AppNavLink href="/sales">
             <LayoutDashboard className="size-4" />
             Daftar Penjualan
-          </Link>
+          </AppNavLink>
         </Button>
       }
     >
@@ -127,7 +127,7 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             </Button>
             {(code || customerId || paymentStatus) && (
               <Button asChild type="button" variant="outline" className="bg-card">
-                <Link href="/invoices">Reset</Link>
+                <AppNavLink href="/invoices">Reset</AppNavLink>
               </Button>
             )}
           </div>

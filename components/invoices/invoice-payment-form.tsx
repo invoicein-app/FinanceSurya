@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { updateInvoiceGroupPaymentAction } from "@/app/sales/invoice-group-actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ export function InvoicePaymentForm({
   paidAmount,
   totalAmount,
 }: InvoicePaymentFormProps) {
+  const { wrapSave } = useMutationLoading();
   const [value, setValue] = useState(paidAmount.toString());
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function InvoicePaymentForm({
     formData.set("paidAmount", value);
 
     try {
-      await updateInvoiceGroupPaymentAction(formData);
+      await wrapSave(() => updateInvoiceGroupPaymentAction(formData));
       setMessage("Pembayaran berhasil diperbarui.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal memperbarui pembayaran.");

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { ensureAuthenticated } from "@/lib/auth/ensure-auth";
+import { formDataOptionalString, formDataRequiredString } from "@/lib/zod/form-data";
 
 import {
   createSale,
@@ -14,10 +15,10 @@ import {
 } from "@/lib/services/sale-service";
 
 const saleSchema = z.object({
-  saleDate: z.string().min(1, "Tanggal penjualan wajib diisi"),
-  customerId: z.string().min(1, "Customer wajib dipilih"),
-  clientRequestId: z.string().optional(),
-  note: z.string().optional(),
+  saleDate: formDataRequiredString("Tanggal penjualan wajib diisi"),
+  customerId: formDataRequiredString("Customer wajib dipilih"),
+  clientRequestId: formDataOptionalString(),
+  note: formDataOptionalString(),
 });
 
 export async function createSaleAction(formData: FormData) {

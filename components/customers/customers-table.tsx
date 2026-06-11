@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import { deleteCustomerAction, updateCustomerAction } from "@/app/customers/actions";
+import { MutationActionForm } from "@/components/mutation-action-form";
 import {
   DashboardTableArea,
   TABLE_ACTION_BTN_DELETE,
@@ -77,9 +78,13 @@ export function CustomersTable({ initialRows }: CustomersTableProps) {
                 return (
                   <TableRow key={customer.id} className={TABLE_BODY_ROW_CLASS}>
                     <TableCell className={TABLE_CELL_DEFAULT}>
-                      <form id={updateFormId} action={updateCustomerAction} className="hidden">
+                      <MutationActionForm
+                        id={updateFormId}
+                        action={updateCustomerAction}
+                        className="hidden"
+                      >
                         <input type="hidden" name="id" value={customer.id} />
-                      </form>
+                      </MutationActionForm>
                       <Input
                         form={updateFormId}
                         name="name"
@@ -99,7 +104,11 @@ export function CustomersTable({ initialRows }: CustomersTableProps) {
                         >
                           Update
                         </Button>
-                        <form action={deleteCustomerAction} className="inline-block">
+                        <MutationActionForm
+                          action={deleteCustomerAction}
+                          mutationKind="delete"
+                          className="inline-block"
+                        >
                           <input type="hidden" name="id" value={customer.id} />
                           <Button
                             type="submit"
@@ -110,7 +119,7 @@ export function CustomersTable({ initialRows }: CustomersTableProps) {
                             <Trash2 className="size-3.5" />
                             Hapus
                           </Button>
-                        </form>
+                        </MutationActionForm>
                       </div>
                     </TableCell>
                   </TableRow>

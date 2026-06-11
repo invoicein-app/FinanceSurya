@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/app-nav-link";
 import { useMemo, useState } from "react";
 import { Eye, FileStack, Trash2 } from "lucide-react";
 
 import { deleteSaleAction } from "@/app/sales/actions";
+import { useMutationLoading } from "@/lib/hooks/use-mutation-loading";
 import {
   DashboardTableArea,
   TABLE_ACTION_BTN_DELETE,
@@ -60,6 +61,7 @@ type ConfirmTarget = {
 };
 
 export function SalesTable({ initialRows }: SalesTableProps) {
+  const { wrapDelete } = useMutationLoading();
   const [rows, setRows] = useState(initialRows);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
@@ -160,7 +162,7 @@ export function SalesTable({ initialRows }: SalesTableProps) {
     setErrorMessage(null);
 
     try {
-      await deleteSaleAction(targetId);
+      await wrapDelete(() => deleteSaleAction(targetId));
       setRows((current) => current.filter((row) => row.id !== targetId));
       setSelectedIds((current) => {
         const next = new Set(current);
@@ -323,14 +325,14 @@ export function SalesTable({ initialRows }: SalesTableProps) {
                     <TableCell className={TABLE_CELL_DEFAULT}>
                       {sale.invoiceGroupCode ? (
                         <div className="flex flex-col gap-1.5">
-                          <Link
+                          <AppNavLink
                             href={`/invoices/${sale.invoiceGroupId}`}
                             className="inline-flex max-w-[180px] items-center gap-1 truncate font-semibold text-primary hover:underline"
                             title={sale.invoiceGroupCode}
                           >
                             <FileStack className="size-3.5 shrink-0" />
                             {sale.invoiceGroupCode}
-                          </Link>
+                          </AppNavLink>
                           {sale.invoiceGroupPaymentStatus ? (
                             <InvoiceStatusBadge
                               status={sale.invoiceGroupPaymentStatus}
@@ -380,10 +382,10 @@ export function SalesTable({ initialRows }: SalesTableProps) {
                           variant="outline"
                           className={TABLE_ACTION_BTN_VIEW}
                         >
-                          <Link href={`/sales/${sale.id}`}>
+                          <AppNavLink href={`/sales/${sale.id}`}>
                             <Eye className="size-3.5" />
                             Detail
-                          </Link>
+                          </AppNavLink>
                         </Button>
                         <Button
                           type="button"
